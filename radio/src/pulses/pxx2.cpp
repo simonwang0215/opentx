@@ -49,6 +49,8 @@ void Pxx2Pulses::addPulsesValues(uint16_t low, uint16_t high)
   Pxx2Transport::addByte(high >> 4);  // High byte of channel
 }
 
+uint8_t latency_counter = 0;
+
 void Pxx2Pulses::addChannels(uint8_t module)
 {
   uint16_t pulseValue = 0;
@@ -60,11 +62,22 @@ void Pxx2Pulses::addChannels(uint8_t module)
   for (int8_t i = 0; i < count; i++, channel++) {
     int value = channelOutputs[channel] + 2*PPM_CH_CENTER(channel) - 2*PPM_CENTER;
     pulseValue = limit(1, (value * 512 / 682) + 1024, 2046);
+    if(i == 0) {
+      if (latency_counter++ % 16 < 8) {
+        sportUpdatePowerOn();
+        pulseValue = 1;
+      }
+      else {
+        sportUpdatePowerOff();
+        pulseValue = 2046;
+      }
+    }
     if (i & 1)
       addPulsesValues(pulseValueLow, pulseValue);
     else
       pulseValueLow = pulseValue;
   }
+
 }
 
 void Pxx2Pulses::addFailsafe(uint8_t module)

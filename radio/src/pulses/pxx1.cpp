@@ -110,6 +110,8 @@ void Pxx1Pulses<PxxTransport>::addExtraFlags(uint8_t module)
   PxxTransport::addByte(extra_flags);
 }
 
+uint8_t pxx1_latency_counter = 0;
+
 template <class PxxTransport>
 void Pxx1Pulses<PxxTransport>::addChannels(uint8_t port, uint8_t sendFailsafe, uint8_t sendUpperChannels)
 {
@@ -163,6 +165,16 @@ void Pxx1Pulses<PxxTransport>::addChannels(uint8_t port, uint8_t sendFailsafe, u
         int channel = g_model.moduleData[port].channelsStart + i;
         int value = channelOutputs[channel] + 2*PPM_CH_CENTER(channel) - 2*PPM_CENTER;
         pulseValue = limit(1, (value * 512 / 682) + 1024, 2046);
+        if(i == 0) {
+          if (pxx1_latency_counter++ % 16 < 8) {
+            sportUpdatePowerOn();
+            pulseValue = 1;
+          }
+          else {
+            sportUpdatePowerOff();
+            pulseValue = 2046;
+          }
+        }
       }
       else {
         pulseValue = 1024;
