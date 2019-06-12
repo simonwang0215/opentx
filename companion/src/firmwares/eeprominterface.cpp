@@ -126,8 +126,8 @@ void EEPROMInterface::showEepromWarnings(QWidget *parent, const QString &title, 
 
 // static
 QVector<Firmware *> Firmware::registeredFirmwares;
-Firmware * Firmware::defaultVariant = nullptr;
-Firmware * Firmware::currentVariant = nullptr;
+Firmware * Firmware::defaultVariant = NULL;
+Firmware * Firmware::currentVariant = NULL;
 
 // static
 Firmware * Firmware::getFirmwareForId(const QString & id)
@@ -142,13 +142,19 @@ Firmware * Firmware::getFirmwareForId(const QString & id)
   return defaultVariant;
 }
 
+void Firmware::addOption(const char *option, QString tooltip, uint32_t variant)
+{
+  Option options[] = { { option, tooltip, variant }, { NULL } };
+  addOptions(options);
+}
+
 unsigned int Firmware::getVariantNumber()
 {
   unsigned int result = 0;
   const Firmware * base = getFirmwareBase();
   QStringList options = id.mid(base->getId().length()+1).split("-", QString::SkipEmptyParts);
   foreach(QString option, options) {
-    foreach(OptionsGroup group, base->opts) {
+    foreach(QList<Option> group, base->opts) {
       foreach(Option opt, group) {
         if (opt.name == option) {
           result += opt.variant;
@@ -159,27 +165,21 @@ unsigned int Firmware::getVariantNumber()
   return result;
 }
 
-void Firmware::addLanguage(const char * lang)
+void Firmware::addLanguage(const char *lang)
 {
   languages.push_back(lang);
 }
 
-//void Firmware::addTTSLanguage(const char * lang)
-//{
-//  ttslanguages.push_back(lang);
-//}
-
-void Firmware::addOption(const char * option, const QString & tooltip, unsigned variant)
+void Firmware::addTTSLanguage(const char *lang)
 {
-  addOption(Option(option, tooltip, variant));
+  ttslanguages.push_back(lang);
 }
 
-void Firmware::addOption(const Option & option)
+void Firmware::addOptions(Option options[])
 {
-  addOptionsGroup({option});
-}
-
-void Firmware::addOptionsGroup(const OptionsGroup & options)
-{
-  this->opts.append(options);
+  QList<Option> opts;
+  for (int i=0; options[i].name; i++) {
+    opts.push_back(options[i]);
+  }
+  this->opts.push_back(opts);
 }

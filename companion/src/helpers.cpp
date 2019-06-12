@@ -33,10 +33,8 @@
 #include "simulatormainwindow.h"
 #include "storage/sdcard.h"
 
-#include <QFileDialog>
 #include <QLabel>
 #include <QMessageBox>
-#include <QDir>
 
 using namespace Helpers;
 
@@ -466,22 +464,83 @@ void Helpers::getFileComboBoxValue(QComboBox * b, char * dest, int length)
   }
 }
 
-void Helpers::exportAppSettings(QWidget * dlgParent)
+void Helpers::addRawSourceItems(QStandardItemModel * itemModel, const RawSourceType & type, int count, const GeneralSettings * const generalSettings,
+                                const ModelData * const model, const int start)
 {
-  static QString lastExpFile = CPN_SETTINGS_INI_PATH.arg(QDateTime::currentDateTime().toString("dd-MMM-yy"));
-  const QString expFile = QFileDialog::getSaveFileName(dlgParent, QCoreApplication::translate("Companion", "Select or create a file for exported Settings:"), lastExpFile, CPN_STR_APP_SETTINGS_FILTER);
-  if (expFile.isEmpty())
-    return;
+  for (int i = start; i < start + count; i++) {
+    RawSource src = RawSource(type, i);
+    if (!src.isAvailable(model, generalSettings, getCurrentBoard()))
+      continue;
 
-  lastExpFile = expFile;
-  QString resultMsg;
-  if (g.exportSettingsToFile(expFile, resultMsg)) {
-    QMessageBox::information(dlgParent, CPN_STR_APP_NAME, resultMsg);
-    return;
+    QStandardItem * modelItem = new QStandardItem(src.toString(model, generalSettings));
+    modelItem->setData(src.toValue(), Qt::UserRole);
+    itemModel->appendRow(modelItem);
   }
-  resultMsg.append("\n" % QCoreApplication::translate("Companion", "Press the 'Retry' button to choose another file."));
-  if (QMessageBox::warning(dlgParent, CPN_STR_APP_NAME, resultMsg, QMessageBox::Cancel, QMessageBox::Retry) == QMessageBox::Retry)
-    exportAppSettings(dlgParent);
+}
+
+QStandardItemModel * Helpers::getRawSourceItemModel(const GeneralSettings * const generalSettings, const ModelData * const model, unsigned int flags)
+{
+  QStandardItemModel * itemModel = new QStandardItemModel();
+  Boards board = Boards(getCurrentBoard());
+  Firmware * fw = getCurrentFirmware();
+
+  if (flags & POPULATE_NONE) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_NONE, 1, generalSettings, model);
+  }
+
+  if (flags & POPULATE_SCRIPT_OUTPUTS) {
+    for (int i=0; i < getCurrentFirmware()->getCapability(LuaScripts); i++) {
+      addRawSourceItems(itemModel, SOURCE_TYPE_LUA_OUTPUT, fw->getCapability(LuaOutputsPerScript), generalSettings, model, i * 16);
+    }
+  }
+
+  if (model && (flags & POPULATE_VIRTUAL_INPUTS)) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_VIRTUAL_INPUT, fw->getCapability(VirtualInputs), generalSettings, model);
+  }
+
+  if (flags & POPULATE_SOURCES) {
+    int totalSources = CPN_MAX_STICKS + board.getCapability(Board::Pots) + board.getCapability(Board::Sliders) +  board.getCapability(Board::MouseAnalogs);
+    addRawSourceItems(itemModel, SOURCE_TYPE_STICK, totalSources, generalSettings, model);
+    addRawSourceItems(itemModel, SOURCE_TYPE_ROTARY_ENCODER, fw->getCapability(RotaryEncoders), generalSettings, model);
+  }
+
+  if (flags & POPULATE_TRIMS) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_TRIM, board.getCapability(Board::NumTrims), generalSettings, model);
+  }
+
+  if (flags & POPULATE_SOURCES) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_MAX, 1, generalSettings, model);
+  }
+
+  if (flags & POPULATE_SWITCHES) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_SWITCH, board.getCapability(Board::Switches), generalSettings, model);
+    addRawSourceItems(itemModel, SOURCE_TYPE_CUSTOM_SWITCH, fw->getCapability(LogicalSwitches), generalSettings, model);
+  }
+
+  if (flags & POPULATE_SOURCES) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_CYC, CPN_MAX_CYC, generalSettings, model);
+    addRawSourceItems(itemModel, SOURCE_TYPE_PPM, fw->getCapability(TrainerInputs), generalSettings, model);
+    addRawSourceItems(itemModel, SOURCE_TYPE_CH, fw->getCapability(Outputs), generalSettings, model);
+  }
+
+  if (flags & POPULATE_TELEMETRY) {
+    int count = 0;
+    if (IS_ARM(board.getBoardType())) {
+      addRawSourceItems(itemModel, SOURCE_TYPE_SPECIAL, 5, generalSettings, model);
+      count = CPN_MAX_SENSORS * 3;
+    }
+    else {
+      count = ((flags & POPULATE_TELEMETRYEXT) ? TELEMETRY_SOURCES_STATUS_COUNT : TELEMETRY_SOURCES_COUNT);
+    }
+    if (model && count)
+      addRawSourceItems(itemModel, SOURCE_TYPE_TELEMETRY, count, generalSettings, model);
+  }
+
+  if (flags & POPULATE_GVARS) {
+    addRawSourceItems(itemModel, SOURCE_TYPE_GVAR, fw->getCapability(Gvars), generalSettings, model);
+  }
+
+  return itemModel;
 }
 
 void startSimulation(QWidget * parent, RadioData & radioData, int modelIdx)
@@ -809,51 +868,4 @@ void TableLayout::pushRowsUp(int row)
   // Push rows upward
   // addDoubleSpring(gridLayout, 5, num_fsw+1);
 
-}
-
-QString Helpers::getChecklistsPath()
-{
-  return QDir::toNativeSeparators(g.profile[g.id()].sdPath() + "/MODELS/");   // TODO : add sub folder to constants
-}
-
-QString Helpers::getChecklistFilename(const ModelData * model)
-{
-  QString name = model->name;
-  name.replace(" ", "_");
-  name.append(".txt");          // TODO : add to constants
-  return name;
-}
-
-QString Helpers::getChecklistFilePath(const ModelData * model)
-{
-  return getChecklistsPath() + getChecklistFilename(model);
-}
-
-QString Helpers::removeAccents(const QString & str)
-{
-  // UTF-8 ASCII Table
-  static const QHash<QString, QVariant> map = {
-    {"a", QRegularExpression("[áâãàä]")},
-    {"A", QRegularExpression("[ÁÂÃÀÄ]")},
-    {"e", QRegularExpression("[éèêě]")},
-    {"E", QRegularExpression("[ÉÈÊĚ]")},
-    {"o", QRegularExpression("[óôõö]")},
-    {"O", QRegularExpression("[ÓÔÕÖ]")},
-    {"u", QRegularExpression("[úü]")},
-    {"U", QRegularExpression("[ÚÜ]")},
-    {"i", "í"}, {"I", "Í"},
-    {"c", "ç"}, {"C", "Ç"},
-    {"y", "ý"}, {"Y", "Ý"},
-    {"s", "š"}, {"S", "Š"},
-    {"r", "ř"}, {"R", "Ř"}
-  };
-
-  QString result(str);
-  for (QHash<QString, QVariant>::const_iterator it = map.cbegin(), en = map.cend(); it != en; ++it) {
-    if (it.value().canConvert<QRegularExpression>())
-      result.replace(it.value().toRegularExpression(), it.key());
-    else
-      result.replace(it.value().toString(), it.key());
-  }
-  return result;
 }

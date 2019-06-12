@@ -33,7 +33,7 @@
 /* Lock / unlock functions                                               */
 /*-----------------------------------------------------------------------*/
 #if !defined(BOOT)
-static RTOS_MUTEX_HANDLE ioMutex;
+static OS_MutexID ioMutex;
 uint32_t ioMutexReq = 0, ioMutexRel = 0;
 int ff_cre_syncobj (BYTE vol, _SYNC_t *mutex)
 {
@@ -44,14 +44,13 @@ int ff_cre_syncobj (BYTE vol, _SYNC_t *mutex)
 int ff_req_grant (_SYNC_t mutex)
 {
   ioMutexReq += 1;
-  RTOS_LOCK_MUTEX(mutex);
-  return 1;
+  return CoEnterMutexSection(mutex) == E_OK;
 }
 
 void ff_rel_grant (_SYNC_t mutex)
 {
   ioMutexRel += 1;
-  RTOS_UNLOCK_MUTEX(mutex);
+  CoLeaveMutexSection(mutex);
 }
 
 int ff_del_syncobj (_SYNC_t mutex)

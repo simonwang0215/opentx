@@ -1,23 +1,18 @@
 option(DISK_CACHE "Enable SD card disk cache" YES)
 option(UNEXPECTED_SHUTDOWN "Enable the Unexpected Shutdown screen" YES)
-option(PXX1 "PXX1 protocol support" ON)
-option(PXX2 "PXX2 protocol support" OFF)
-
 set(PWR_BUTTON "PRESS" CACHE STRING "Pwr button type (PRESS/SWITCH)")
+
 set(CPU_TYPE STM32F4)
 set(HSE_VALUE 12000000)
 set(SDCARD YES)
 set(EEPROM SDCARD)
 set(HAPTIC YES)
 set(GUI_DIR 480x272)
-set(NAVIGATION_TYPE horus)
 set(TARGET_DIR horus)
 set(LINKER_SCRIPT targets/horus/stm32f4_flash.ld)
 set(RAMBACKUP YES)
 set(LUA YES)
 set(PPM_LIMITS_SYMETRICAL YES)
-set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
-
 # for size report script
 set(CPU_TYPE_FULL STM32F429xI)
 set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM2=8192")
@@ -36,6 +31,7 @@ if (PCB STREQUAL X10)
     ../common/arm/stm32/adc_driver.cpp
     ../common/arm/stm32/sticks_pwm_driver.cpp
     )
+
   set(BITMAPS_TARGET x10_bitmaps)
   set(FONTS_TARGET x10_fonts)
   set(LCD_DRIVER lcd_driver.cpp)
@@ -102,11 +98,9 @@ set(GUI_SRC
   topbar.cpp
   layout.cpp
   widget.cpp
-  menus.cpp
   ${THEMES_SRC}
   ${LAYOUTS_SRC}
   ${WIDGETS_SRC}
-  rle.cpp
   )
 if(DISK_CACHE)
   set(SRC ${SRC} disk_cache.cpp)
@@ -118,7 +112,7 @@ if(INTERNAL_GPS)
   message("Horus: Internal GPS enabled")
 endif()
 
-set(AUX_SERIAL_DRIVER ../common/arm/stm32/aux_serial_driver.cpp)
+set(SERIAL2_DRIVER ../common/arm/stm32/serial2_driver.cpp)
 
 set(GVAR_SCREEN model_gvars.cpp)
 
@@ -130,7 +124,6 @@ set(TARGET_SRC
   trainer_driver.cpp
   ../common/arm/stm32/intmodule_serial_driver.cpp
   ../common/arm/stm32/bluetooth_driver.cpp
-  ../common/arm/stm32/rotary_encoder_driver.cpp
   )
 
 set(FIRMWARE_TARGET_SRC
@@ -149,7 +142,6 @@ add_definitions(-DBLUETOOTH)
 set(SRC
   ${SRC}
   bluetooth.cpp
-  io/frsky_firmware_update.cpp
   )
 
 set(STM32LIB_SRC
@@ -163,7 +155,7 @@ set(STM32LIB_SRC
 if(PYTHONINTERP_FOUND)
   add_custom_target(datacopy
     WORKING_DIRECTORY ${RADIO_DIRECTORY}/src
-    COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/generate_datacopy.py datastructs.h -DPCBHORUS -DPCBX10 -DCPUARM -DCOLORLCD -DBACKUP -Itargets/horus > storage/datacopy.cpp
+    COMMAND ${PYTHON_EXECUTABLE} ${RADIO_DIRECTORY}/util/generate_datacopy.py datastructs.h -DPCBHORUS -DPCBX10 -DCPUARM -DCOLORLCD -DBACKUP -DVIRTUAL_INPUTS -Itargets/horus > storage/datacopy.cpp
     DEPENDS ${RADIO_DIRECTORY}/src/datastructs.h ${RADIO_DIRECTORY}/util/generate_datacopy.py
   )
 endif()

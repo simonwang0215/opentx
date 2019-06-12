@@ -45,7 +45,7 @@ class DataField {
       return name;
     }
 
-    virtual unsigned int size() = 0; // size in bits
+    virtual unsigned int size() = 0;
     virtual void ExportBits(QBitArray & output) = 0;
     virtual void ImportBits(const QBitArray & input) = 0;
 
@@ -81,15 +81,15 @@ class DataField {
     int Import(const QByteArray & input)
     {
       QBitArray bits = bytesToBits(input);
-      if (unsigned(bits.size()) < size()) {
-        qDebug() << QString("Error importing %1: size too small %2 bits / %3 bits").arg(getName()).arg(bits.size()).arg(size());
+      if ((unsigned int)bits.size() < size()) {
+        qDebug() << QString("Error importing %1: size to small %2/%3").arg(getName()).arg(input.size()).arg(size());
         return -1;
       }
       ImportBits(bits);
       return 0;
     }
 
-    virtual int dump(int level=0, int offset=0)
+    virtual int Dump(int level=0, int offset=0)
     {
       QBitArray bits;
       ExportBits(bits);
@@ -387,7 +387,7 @@ class CharField: public DataField {
 };
 
 static const char specialCharsTab[] = "_-.,";
-static inline int8_t char2zchar(char c)
+static inline int8_t char2idx(char c)
 {
   if (c==' ') return 0;
   if (c>='A' && c<='Z') return 1+c-'A';
@@ -401,7 +401,7 @@ static inline int8_t char2zchar(char c)
 }
 
 #define ZCHAR_MAX 40
-static inline char zchar2char(int8_t idx)
+static inline char idx2char(int8_t idx)
 {
   if (idx == 0) return ' ';
   if (idx < 0) {
@@ -429,7 +429,7 @@ class ZCharField: public DataField {
       int b = 0;
       int len = strlen(field);
       for (int i=0; i<N; i++) {
-        int idx = i>=len ? 0 : char2zchar(field[i]);
+        int idx = i>=len ? 0 : char2idx(field[i]);
         for (int j=0; j<8; j++, b++) {
           if (idx & (1<<j))
             output.setBit(b);
@@ -446,7 +446,7 @@ class ZCharField: public DataField {
           if (input[b++])
             idx |= (1<<j);
         }
-        field[i] = zchar2char(idx);
+        field[i] = idx2char(idx);
       }
 
       field[N] = '\0';
@@ -521,12 +521,12 @@ class StructField: public DataField {
       return result;
     }
 
-    virtual int dump(int level=0, int offset=0)
+    virtual int Dump(int level=0, int offset=0)
     {
       for (int i=0; i<level; i++) printf("  ");
       printf("%s (%d bytes)\n", getName().toLatin1().constData(), size()/8);
       foreach(DataField *field, fields) {
-        offset = field->dump(level+1, offset);
+        offset = field->Dump(level+1, offset);
       }
       return offset;
     }
@@ -575,10 +575,10 @@ class TransformedField: public DataField {
 
     virtual void afterImport() = 0;
 
-    virtual int dump(int level=0, int offset=0)
+    virtual int Dump(int level=0, int offset=0)
     {
       beforeExport();
-      return field.dump(level, offset);
+      return field.Dump(level, offset);
     }
 
   protected:

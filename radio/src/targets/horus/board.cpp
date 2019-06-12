@@ -29,8 +29,6 @@ extern "C" {
 }
 #endif
 
-HardwareOptions hardwareOptions;
-
 void watchdogInit(unsigned int duration)
 {
   IWDG->KR = 0x5555;      // Unlock registers
@@ -86,6 +84,10 @@ void interrupt1ms()
     per10ms();
     DEBUG_TIMER_STOP(debugTimerPer10ms);
   }
+
+  DEBUG_TIMER_START(debugTimerRotEnc);
+  checkRotaryEncoder();
+  DEBUG_TIMER_STOP(debugTimerRotEnc);
 }
 
 extern "C" void INTERRUPT_xMS_IRQHandler()
@@ -138,7 +140,7 @@ void boardInit()
                          AUDIO_RCC_AHB1Periph |
                          KEYS_RCC_AHB1Periph |
                          ADC_RCC_AHB1Periph |
-                         AUX_SERIAL_RCC_AHB1Periph |
+                         SERIAL_RCC_AHB1Periph |
                          TELEMETRY_RCC_AHB1Periph |
                          TRAINER_RCC_AHB1Periph |
                          BT_RCC_AHB1Periph |
@@ -154,7 +156,7 @@ void boardInit()
                          ADC_RCC_APB1Periph |
                          TIMER_2MHz_RCC_APB1Periph |
                          AUDIO_RCC_APB1Periph |
-                         AUX_SERIAL_RCC_APB1Periph |
+                         SERIAL_RCC_APB1Periph |
                          TELEMETRY_RCC_APB1Periph |
                          TRAINER_RCC_APB1Periph |
                          AUDIO_RCC_APB1Periph |
@@ -164,8 +166,7 @@ void boardInit()
                          BACKLIGHT_RCC_APB1Periph,
                          ENABLE);
 
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_SYSCFG |
-                         LCD_RCC_APB2Periph |
+  RCC_APB2PeriphClockCmd(LCD_RCC_APB2Periph |
                          ADC_RCC_APB2Periph |
                          HAPTIC_RCC_APB2Periph |
                          INTMODULE_RCC_APB2Periph |
@@ -177,8 +178,11 @@ void boardInit()
   pwrInit();
   delaysInit();
 
+  // FrSky removed the volume chip in latest board, that's why it doesn't answer!
+  // i2cInit();
+
 #if defined(DEBUG)
-  auxSerialInit(0, 0); // default serial mode (None if DEBUG not defined)
+  serial2Init(0, 0); // default serial mode (None if DEBUG not defined)
 #endif
 
   __enable_irq();
@@ -188,18 +192,17 @@ void boardInit()
 
   audioInit();
 
-  // we need to initialize g_FATFS_Obj here, because it is in .ram section (because of DMA access)
+  // we need to initialize g_FATFS_Obj here, because it is in .ram section (because of DMA access) 
   // and this section is un-initialized
   memset(&g_FATFS_Obj, 0, sizeof(g_FATFS_Obj));
 
   keysInit();
-  rotaryEncoderInit();
 
 #if NUM_PWMSTICKS > 0
   sticksPwmInit();
   delay_ms(20);
   if (pwm_interrupt_count < 32) {
-    hardwareOptions.sticksPwmDisabled = true;
+    sticks_pwm_disabled = true;
   }
 #endif
 
@@ -213,7 +216,7 @@ void boardInit()
   hapticInit();
 
 #if defined(BLUETOOTH)
-  bluetoothInit(BLUETOOTH_DEFAULT_BAUDRATE, true);
+  bluetoothInit(BLUETOOTH_DEFAULT_BAUDRATE);
 #endif
 
 #if defined(INTERNAL_GPS)
@@ -230,8 +233,6 @@ void boardInit()
 #endif
 
   ledBlue();
-
-  vbattRTC = getRTCBattVoltage();
 #endif
 }
 
@@ -251,7 +252,7 @@ uint8_t currentTrainerMode = 0xff;
 
 void checkTrainerSettings()
 {
-  uint8_t requiredTrainerMode = g_model.trainerData.mode;
+  uint8_t requiredTrainerMode = g_model.trainerMode;
   if (requiredTrainerMode != currentTrainerMode) {
     switch (currentTrainerMode) {
       case TRAINER_MODE_MASTER_TRAINER_JACK:
@@ -261,7 +262,7 @@ void checkTrainerSettings()
         stop_trainer_ppm();
         break;
       case TRAINER_MODE_MASTER_BATTERY_COMPARTMENT:
-        auxSerialStop();
+        serial2Stop();
     }
 
     currentTrainerMode = requiredTrainerMode;
@@ -270,8 +271,8 @@ void checkTrainerSettings()
         init_trainer_ppm();
         break;
       case TRAINER_MODE_MASTER_BATTERY_COMPARTMENT:
-        if (g_eeGeneral.auxSerialMode == UART_MODE_SBUS_TRAINER) {
-          auxSerialSbusInit();
+        if (g_eeGeneral.serial2Mode == UART_MODE_SBUS_TRAINER) {
+          serial2SbusInit();
           break;
         }
         // no break

@@ -24,8 +24,14 @@
 #define _BOARD_H_
 
 #include <stdint.h>
+
 #include "chip.h"
+
+#if defined(REVA)
+#include "AT91SAM3S2.h"
+#else
 #include "AT91SAM3S4.h"
+#endif
 
 #if !defined(SIMU)
 #include "core_cm3.h"

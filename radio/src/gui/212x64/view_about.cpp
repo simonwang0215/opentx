@@ -20,7 +20,7 @@
 
 #include "opentx.h"
 
-const unsigned char about_bmp[]  = {
+const pm_uchar about_bmp[] PROGMEM = {
 #include "about.lbm"
 };
 

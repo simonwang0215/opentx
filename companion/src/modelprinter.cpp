@@ -24,15 +24,11 @@
 #include "boards.h"
 #include "helpers_html.h"
 #include "multiprotocols.h"
-#include "appdata.h"
 
 #include <QApplication>
 #include <QPainter>
 #include <QFile>
 #include <QUrl>
-#include <QTextStream>
-
-extern AppData g;
 
 QString changeColor(const QString & input, const QString & to, const QString & from)
 {
@@ -281,16 +277,38 @@ QString ModelPrinter::printHeliSwashType ()
 QString ModelPrinter::printCenterBeep()
 {
   QStringList strl;
-  Board::Type board = firmware->getBoard();
-  int analogs = CPN_MAX_STICKS + getBoardCapability(board, Board::Pots) + getBoardCapability(board, Board::Sliders);
-
-  for (int i=0; i < analogs + firmware->getCapability(RotaryEncoders); i++) {
-    RawSource src((i < analogs) ? SOURCE_TYPE_STICK : SOURCE_TYPE_ROTARY_ENCODER, (i < analogs) ? i : analogs - i);
-    if (model.beepANACenter & (0x01 << i)) {
-      strl << src.toString(&model, &generalSettings);
-    }
+  if (model.beepANACenter & 0x01)
+    strl << tr("Rudder");
+  if (model.beepANACenter & 0x02)
+    strl << tr("Elevator");
+  if (model.beepANACenter & 0x04)
+    strl << tr("Throttle");
+  if (model.beepANACenter & 0x08)
+    strl << tr("Aileron");
+  if (IS_HORUS(firmware->getBoard())) {
+    // TODO
+    qDebug() << "ModelPrinter::printCenterBeep() TODO";
   }
-
+  else if (IS_TARANIS(firmware->getBoard())) {
+    if (model.beepANACenter & 0x10)
+      strl << "S1";
+    if (model.beepANACenter & 0x20)
+      strl << "S2";
+    if (model.beepANACenter & 0x40)
+      strl << "S3";
+    if (model.beepANACenter & 0x80)
+      strl << "LS";
+    if (model.beepANACenter & 0x100)
+      strl << "RS";
+  }
+  else {
+    if (model.beepANACenter & 0x10)
+      strl << "P1";
+    if (model.beepANACenter & 0x20)
+      strl << "P2";
+    if (model.beepANACenter & 0x40)
+      strl << "P3";
+  }
   return (strl.isEmpty() ? tr("None") : strl.join(" "));
 }
 
@@ -653,17 +671,10 @@ QString ModelPrinter::printLogicalSwitchLine(int idx)
   return result;
 }
 
-QString ModelPrinter::printCustomFunctionLine(int idx, bool gfunc)
+QString ModelPrinter::printCustomFunctionLine(int idx)
 {
   QString result;
-  CustomFunctionData cf;
-  if (gfunc) {
-    if (model.noGlobalFunctions)
-      return result;
-    cf = generalSettings.customFn[idx];
-  }
-  else
-    cf = model.customFn[idx];
+  const CustomFunctionData & cf = model.customFn[idx];
   if (cf.swtch.type == SWITCH_TYPE_NONE)
     return result;
 
@@ -1074,7 +1085,7 @@ QString ModelPrinter::printTelemetrySource(int val)
 {
   QStringList strings = QStringList() << tr("None");
 
-  for (unsigned i=1; i<=CPN_MAX_SENSORS; ++i) {
+  for (int i=1; i<=CPN_MAX_SENSORS; ++i) {
     strings << QString("%1").arg(model.sensorData[i-1].label);
   }
 
@@ -1455,22 +1466,4 @@ QString ModelPrinter::printTelemetryScreen(unsigned int idx, unsigned int line, 
     strl << QString("%1.lua").arg(screen.body.script.filename);
   }
   return (hd.count() > 1 ? doTableRow(hd, width / hd.count(), "left", "", true) : "" ) + doTableRow(strl, width / strl.count());
-}
-
-QString ModelPrinter::printChecklist()
-{
-  if (!model.displayChecklist)
-    return "";
-  QString str = tr("Error: Unable to open or read file!");
-  QFile file(Helpers::getChecklistFilePath(&model));
-  if (file.open(QFile::ReadOnly | QFile::Text)) {
-    QTextStream in(&file);
-    if (in.status() == QTextStream::Ok) {
-      str = in.readAll();
-      str.replace("\n", "<br />");
-      str.remove("\r");
-    }
-    file.close();
-  }
-  return str;
 }

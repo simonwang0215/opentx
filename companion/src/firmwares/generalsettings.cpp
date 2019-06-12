@@ -90,7 +90,7 @@ GeneralSettings::GeneralSettings()
     // Lipo 2S
     vBatWarn = 66;
     vBatMin = -23;  // 6.7V
-    vBatMax = -37;  // 8.3V
+    vBatMax = -37;  // 8.3V 
   }
   else if (IS_TARANIS(board)) {
     // NI-MH 7.2V, X9D, X9D+ and X7
@@ -249,10 +249,6 @@ void GeneralSettings::setDefaultControlTypes(Board::Type board)
     potConfig[0] = Board::POT_WITH_DETENT;
     potConfig[1] = Board::POT_WITH_DETENT;
   }
-  else if (IS_JUMPER_T12(board)) {
-    potConfig[0] = Board::POT_WITH_DETENT;
-    potConfig[1] = Board::POT_WITH_DETENT;
-  }
   else {
     potConfig[0] = Board::POT_WITHOUT_DETENT;
     potConfig[1] = Board::POT_WITHOUT_DETENT;
@@ -310,25 +306,11 @@ void GeneralSettings::convert(RadioDataConversionState & cstate)
   // SE and SG are skipped on X7 board
   if (IS_TARANIS_X7(cstate.toType)) {
     if (IS_TARANIS_X9(cstate.fromType) || IS_HORUS(cstate.fromType)) {
-      strncpy(switchName[4], switchName[5], sizeof(switchName[4]));
-      strncpy(switchName[5], switchName[7], sizeof(switchName[5]));
-    }
-  }
-  else if (IS_TARANIS_X7(cstate.fromType)) {
-    if (IS_TARANIS_X9(cstate.toType) || IS_HORUS(cstate.toType)) {
-      strncpy(switchName[5], switchName[4], sizeof(switchName[5]));
-      strncpy(switchName[7], switchName[5], sizeof(switchName[7]));
-    }
-  }
-
-  if (IS_JUMPER_T12(cstate.toType)) {
-    if (IS_TARANIS_X9(cstate.fromType) || IS_HORUS(cstate.fromType)) {
       strncpy(switchName[4], switchName[5], sizeof(switchName[0]));
       strncpy(switchName[5], switchName[7], sizeof(switchName[0]));
     }
   }
-
-  else if (IS_JUMPER_T12(cstate.fromType)) {
+  else if (IS_TARANIS_X7(cstate.fromType)) {
     if (IS_TARANIS_X9(cstate.toType) || IS_HORUS(cstate.toType)) {
       strncpy(switchName[5], switchName[4], sizeof(switchName[0]));
       strncpy(switchName[7], switchName[5], sizeof(switchName[0]));
@@ -338,17 +320,17 @@ void GeneralSettings::convert(RadioDataConversionState & cstate)
   // LS and RS sliders are after 2 aux sliders on X12 and X9E
   if ((IS_HORUS_X12S(cstate.toType) || IS_TARANIS_X9E(cstate.toType)) && !IS_HORUS_X12S(cstate.fromType) && !IS_TARANIS_X9E(cstate.fromType)) {
     strncpy(sliderName[0], sliderName[2], sizeof(sliderName[0]));
-    strncpy(sliderName[1], sliderName[3], sizeof(sliderName[1]));
+    strncpy(sliderName[1], sliderName[3], sizeof(sliderName[0]));
   }
   else if (!IS_TARANIS_X9E(cstate.toType) && !IS_HORUS_X12S(cstate.toType) && (IS_HORUS_X12S(cstate.fromType) || IS_TARANIS_X9E(cstate.fromType))) {
-    strncpy(sliderName[2], sliderName[0], sizeof(sliderName[2]));
-    strncpy(sliderName[3], sliderName[1], sizeof(sliderName[3]));
+    strncpy(sliderName[2], sliderName[0], sizeof(sliderName[0]));
+    strncpy(sliderName[3], sliderName[1], sizeof(sliderName[0]));
   }
 
   if (IS_HORUS(cstate.toType)) {
     // 6P switch is only on Horus (by default)
     if (cstate.fromBoard.getCapability(Board::FactoryInstalledPots) == 2) {
-      strncpy(potName[2], potName[1], sizeof(potName[2]));
+      strncpy(potName[2], potName[1], sizeof(potName[0]));
       potName[1][0] = '\0';
     }
   }
@@ -356,7 +338,7 @@ void GeneralSettings::convert(RadioDataConversionState & cstate)
   if (IS_TARANIS(cstate.toType)) {
     // No S3 pot on Taranis boards by default
     if (cstate.fromBoard.getCapability(Board::FactoryInstalledPots) > 2)
-      strncpy(potName[1], potName[2], sizeof(potName[1]));
+      strncpy(potName[1], potName[2], sizeof(potName[0]));
 
     contrast = qBound<int>(getCurrentFirmware()->getCapability(MinContrast), contrast, getCurrentFirmware()->getCapability(MaxContrast));
   }

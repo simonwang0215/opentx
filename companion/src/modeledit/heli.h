@@ -23,8 +23,6 @@
 
 #include "modeledit.h"
 
-class RawSourceFilterItemModel;
-
 namespace Ui {
   class Heli;
 }
@@ -39,12 +37,12 @@ class HeliPanel : public ModelPanel
     void update();
 
   private slots:
-    void updateDataModels();
+    void setDataModels();
     void edited();
 
   private:
     Ui::Heli *ui;
-    RawSourceFilterItemModel * rawSourceItemModel;
+    QStandardItemModel * rawSourceItemModel;
 };
 
 #endif // _HELI_H_

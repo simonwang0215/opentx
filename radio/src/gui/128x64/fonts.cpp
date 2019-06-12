@@ -20,8 +20,12 @@
 
 #include "opentx.h"
 
-const unsigned char font_5x7[]  = {
+const pm_uchar font_5x7[] PROGMEM = {
+#if defined (CPUARM)
 #include "font_05x07.lbm"
+#else
+#include "font_05x07_avr.lbm"
+#endif
 #if defined(TRANSLATIONS_DE)
 #include "font_de_05x07.lbm"
 #elif defined(TRANSLATIONS_CZ)
@@ -44,14 +48,15 @@ const unsigned char font_5x7[]  = {
 };
 
 #if defined(BOLD_SPECIFIC_FONT)
-const unsigned char font_5x7_B[]  = {
+const pm_uchar font_5x7_B[] PROGMEM = {
 #include "font_05x07_B_compressed.lbm"
 };
 #endif
 
 #if !defined(BOOT)
-const unsigned char font_10x14[]  = {
+const pm_uchar font_10x14[] PROGMEM = {
 #include "font_10x14_compressed.lbm"
+#if defined(CPUARM)
   #if defined(TRANSLATIONS_DE)
   #include "font_de_10x14.lbm"
   #elif defined(TRANSLATIONS_CZ)
@@ -71,14 +76,15 @@ const unsigned char font_10x14[]  = {
   #elif defined(TRANSLATIONS_SE)
   #include "font_se_10x14.lbm"
   #endif
+#endif
 };
 #endif
 
-#if !defined(BOOT)
-const unsigned char font_3x5[]  = {
+#if defined(CPUARM) && !defined(BOOT)
+const pm_uchar font_3x5[] PROGMEM = {
 #include "font_03x05.lbm"
 };
-const unsigned char font_4x6[]  = {
+const pm_uchar font_4x6[] PROGMEM = {
 #include "font_04x06.lbm"
 #if defined(TRANSLATIONS_DE)
 #include "font_de_04x06.lbm"
@@ -101,7 +107,7 @@ const unsigned char font_4x6[]  = {
 #endif
 };
 
-const unsigned char font_8x10[]  = {
+const pm_uchar font_8x10[] PROGMEM = {
 #include "font_08x10.lbm"
 #if defined(TRANSLATIONS_DE)
 #include "font_de_08x10.lbm"
@@ -124,20 +130,20 @@ const unsigned char font_8x10[]  = {
 #endif
 };
 
-const unsigned char font_22x38_num[]  = {
+const pm_uchar font_22x38_num[] PROGMEM = {
 #include "font_22x38_num.lbm"
 };
 
-const unsigned char font_4x6_extra[]  = {
+const pm_uchar font_4x6_extra[] PROGMEM = {
 #include "font_04x06_extra.lbm"
 };
 
-const unsigned char font_5x7_extra[]  = {
+const pm_uchar font_5x7_extra[] PROGMEM = {
 #include "font_05x07_extra.lbm"
 };
 
-const unsigned char font_10x14_extra[]  = {
+const pm_uchar font_10x14_extra[] PROGMEM = {
 #include "font_10x14_extra.lbm"
 };
 
-#endif // !defined(BOOT)
+#endif // defined(CPUARM) && !defined(BOOT)

@@ -20,39 +20,17 @@
 
 #include "opentx.h"
 
-void runPopupCurvePreset(event_t event)
+void displayPresetChoice(event_t event)
 {
-  warningResult = false;
-
-  drawMessageBox(warningText);
-
-  lcdDrawText(WARNING_LINE_X, WARNING_LINE_Y+2*FH, STR_POPUPS_ENTER_EXIT);
-
-  switch (event) {
-    case EVT_KEY_BREAK(KEY_ENTER):
-      warningResult = true;
-      // no break
-
-    case EVT_KEY_BREAK(KEY_EXIT):
-      warningText = NULL;
-      warningType = WARNING_TYPE_ASTERISK;
-      break;
-
-    default:
-      s_editMode = EDIT_MODIFY_FIELD;
-      reusableBuffer.curveEdit.preset = checkIncDec(event, reusableBuffer.curveEdit.preset, -4, 4);
-      s_editMode = EDIT_SELECT_FIELD;
-      break;
-  }
-
-  lcdDrawNumber(WARNING_LINE_X+FW*7, WARNING_LINE_Y, 45 * reusableBuffer.curveEdit.preset / 4, LEFT|INVERS);
+  runPopupWarning(event);
+  lcdDrawNumber(WARNING_LINE_X+FW*7, WARNING_LINE_Y, 45*warningInputValue/4, LEFT|INVERS);
   lcdDrawChar(lcdLastRightPos, WARNING_LINE_Y, '@', INVERS);
 
   if (warningResult) {
     warningResult = 0;
     CurveInfo & crv = g_model.curves[s_curveChan];
     int8_t * points = curveAddress(s_curveChan);
-    int k = 25 * reusableBuffer.curveEdit.preset;
+    int k = 25 * warningInputValue;
     int dx = 2000 / (5+crv.points-1);
     for (uint8_t i=0; i<5+crv.points; i++) {
       int x = -1000 + i * dx;
@@ -67,8 +45,7 @@ void runPopupCurvePreset(event_t event)
 void onCurveOneMenu(const char * result)
 {
   if (result == STR_CURVE_PRESET) {
-    reusableBuffer.curveEdit.preset = 4; // 45°
-    POPUP_INPUT(STR_PRESET, runPopupCurvePreset);
+    POPUP_INPUT(STR_PRESET, displayPresetChoice, 0, -4, 4);
   }
   else if (result == STR_MIRROR) {
     CurveInfo & crv = g_model.curves[s_curveChan];
@@ -189,9 +166,9 @@ void menuModelCurveOne(event_t event)
       lcdDrawFilledRect(3, 2*FH+4, 7*FW-2, 4*FH-2, SOLID, ERASE);
       lcdDrawRect(3, 2*FH+4, 7*FW-2, 4*FH-2);
       drawStringWithIndex(7, 3*FH, STR_PT, i+1, LEFT);
-      lcdDrawText(7, 4*FH, "x=");
+      lcdDrawText(7, 4*FH, PSTR("x="));
       lcdDrawNumber(7+2*FW+1, 4*FH, x, LEFT|(selectionMode==1?attr:0));
-      lcdDrawText(7, 5*FH, "y=");
+      lcdDrawText(7, 5*FH, PSTR("y="));
       lcdDrawNumber(7+2*FW+1, 5*FH, points[i], LEFT|(selectionMode==2?attr:0));
       
       // Selection square

@@ -106,9 +106,6 @@ namespace Simulator
 
 struct SimulatorOptions
 {
-    // NOTE: now that the main property/settings system is easier to use, it would probably be better to add new settings directly to Profiles.
-    // TODO: perhaps refactor this some day.
-
     enum StartupDataTypes {
       START_WITH_FILE = 0,
       START_WITH_FOLDER,
@@ -155,24 +152,6 @@ struct SimulatorOptions
       return in;
     }
 
-    inline bool operator == (const SimulatorOptions &rhs) const
-    {
-      bool ret = (dataFile == rhs.dataFile && dataFolder == rhs.dataFolder && sdPath == rhs.sdPath &&
-                  windowGeometry == rhs.windowGeometry && lcdColor == rhs.lcdColor &&
-                  windowState == rhs.windowState && dbgConsoleState == rhs.dbgConsoleState && radioOutputsState == rhs.radioOutputsState);
-      if (!ret || controlsState.size() != rhs.controlsState.size()) {
-        return false;
-      }
-      int i = 0;
-      for (const QByteArray &cs : controlsState) {
-        if (cs != rhs.controlsState.at(i++)) {
-          return false;
-        }
-      }
-      return true;
-    }
-    inline bool operator != (const SimulatorOptions &rhs) const { return !(*this == rhs); }
-
     friend QDebug operator << (QDebug d, const SimulatorOptions & o)
     {
       QDebugStateSaver saver(d);
@@ -180,9 +159,6 @@ struct SimulatorOptions
                   << "; sdPath=" << o.sdPath << "; startupDataType=" << o.startupDataType;
       return d;
     }
-
-    // this is a silly operator for this case, but required for QMetaType::registerComparators() to use our == comparison operators when casting as QVariant.
-    inline bool operator < (const SimulatorOptions &rhs) const { return firmwareId < rhs.firmwareId; }
 
   private:
     quint16 m_version = 0;

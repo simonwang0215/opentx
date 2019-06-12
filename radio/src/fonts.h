@@ -24,35 +24,37 @@
 #if defined(COLORLCD)
 
 #if !defined(BOOT)
-#define FONT_TABLE_SIZE 16
+extern const uint16_t * const fontspecsTable[16];
+extern const uint8_t * const fontsTable[16];
 #else
-#define FONT_TABLE_SIZE 1
+extern const uint16_t * const fontspecsTable[1];
+extern const uint8_t * const fontsTable[1];
 #endif
 
-extern const uint16_t * const fontspecsTable[FONT_TABLE_SIZE];
-extern const uint8_t * fontsTable[FONT_TABLE_SIZE];
-extern BitmapBuffer *  fontCache[2];
-
+#if defined(PCBHORUS)
+extern BitmapBuffer * fontCache[2];
 void loadFontCache();
-void loadFonts();
+#endif
 
 #else
 
-extern const unsigned char font_5x7[];
-extern const unsigned char font_10x14[];
+extern const pm_uchar font_5x7[];
+extern const pm_uchar font_10x14[];
 
-#if defined(BOLD_FONT) &&  !defined(BOOT)
-  #define BOLD_SPECIFIC_FONT
-  extern const unsigned char font_5x7_B[];
+#if defined(BOLD_FONT) && ((!defined(CPUM64) && !defined(PCBMEGA2560)) || defined(TELEMETRY_NONE)) && !defined(BOOT)
+ #define BOLD_SPECIFIC_FONT
+ extern const pm_uchar font_5x7_B[];
 #endif
 
-extern const unsigned char font_3x5[];
-extern const unsigned char font_4x6[];
-extern const unsigned char font_8x10[];
-extern const unsigned char font_22x38_num[];
-extern const unsigned char font_5x7_extra[];
-extern const unsigned char font_10x14_extra[];
-extern const unsigned char font_4x6_extra[];
+#if defined(CPUARM)
+extern const pm_uchar font_3x5[];
+extern const pm_uchar font_4x6[];
+extern const pm_uchar font_8x10[];
+extern const pm_uchar font_22x38_num[];
+extern const pm_uchar font_5x7_extra[];
+extern const pm_uchar font_10x14_extra[];
+extern const pm_uchar font_4x6_extra[];
+#endif
 
 #endif
 

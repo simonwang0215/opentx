@@ -34,14 +34,6 @@ void popMenu()
   TRACE("popMenu(%d)", menuLevel);
 }
 
-void abortPopMenu()
-{
-  menuLevel = menuLevel + 1;
-  menuEvent = 0;
-  TRACE("popMenu(%d) aborted", menuLevel);
-}
-
-
 void chainMenu(MenuHandlerFunc newMenu)
 {
   menuHandlers[menuLevel] = newMenu;
@@ -86,9 +78,9 @@ void readModelNotes()
     strcpy(buf, TEXT_EXT);
   }
 
-  waitKeysReleased();
+  clearKeyEvents();
   event_t event = EVT_ENTRY;
-  while (event != EVT_KEY_FIRST(KEY_EXIT)) {
+  while (event != EVT_KEY_FIRST(KEY_EXIT) && pwrCheck() < e_power_off) {
     lcdRefreshWait();
     lcdClear();
     menuTextView(event);

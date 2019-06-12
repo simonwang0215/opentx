@@ -26,7 +26,6 @@
 
 #include <QMediaPlayer>
 
-class RawSourceFilterItemModel;
 class RawSwitchFilterItemModel;
 class TimerEdit;
 
@@ -62,7 +61,7 @@ class CustomFunctionsPanel : public GenericPanel
     CustomFunctionData * functions;
 
   private slots:
-    void updateDataModels();
+    void setDataModels();
     void customFunctionEdited();
     void functionEdited();
     void fsw_customContextMenuRequested(QPoint pos);
@@ -83,9 +82,8 @@ class CustomFunctionsPanel : public GenericPanel
     void populateGVmodeCB(QComboBox *b, unsigned int value);
     void populateFuncParamCB(QComboBox *b, uint function, unsigned int value, unsigned int adjustmode=0);
     RawSwitchFilterItemModel * rawSwitchItemModel;
-    RawSourceFilterItemModel * rawSrcAllItemModel;
-    RawSourceFilterItemModel * rawSrcInputsItemModel;
-    RawSourceFilterItemModel * rawSrcGVarsItemModel;
+    QStandardItemModel * rawSrcInputsItemModel;
+    QStandardItemModel * rawSrcAllItemModel;
 
     QSet<QString> tracksSet;
     QSet<QString> scriptsSet;

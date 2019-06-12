@@ -61,6 +61,7 @@ SimulatorWidget::SimulatorWidget(QWidget * parent, SimulatorInterface * simulato
 #ifdef JOYSTICKS
   , joystick(NULL)
 #endif
+
 {
   ui->setupUi(this);
 
@@ -68,9 +69,6 @@ SimulatorWidget::SimulatorWidget(QWidget * parent, SimulatorInterface * simulato
   setWindowTitle(windowName);
 
   switch(m_board) {
-    case Board::BOARD_TARANIS_X9LITE:
-      radioUiWidget = new SimulatedUIWidgetX9LITE(simulator, this);
-      break;
     case Board::BOARD_TARANIS_X7:
       radioUiWidget = new SimulatedUIWidgetX7(simulator, this);
       break;
@@ -79,7 +77,6 @@ SimulatorWidget::SimulatorWidget(QWidget * parent, SimulatorInterface * simulato
       radioUiWidget = new SimulatedUIWidgetX9(simulator, this);
       break;
     case Board::BOARD_TARANIS_XLITE:
-    case Board::BOARD_TARANIS_XLITES:
       radioUiWidget = new SimulatedUIWidgetXLITE(simulator, this);
       break;
     case Board::BOARD_TARANIS_X9E:
@@ -91,9 +88,6 @@ SimulatorWidget::SimulatorWidget(QWidget * parent, SimulatorInterface * simulato
     case Board::BOARD_X10:
       radioUiWidget = new SimulatedUIWidgetX10(simulator, this);
       break;
-    case Board::BOARD_JUMPER_T12:
-      radioUiWidget = new SimulatedUIWidgetJumperT12(simulator, this);
-      break;  
     default:
       radioUiWidget = new SimulatedUIWidget9X(simulator, this);
       break;
@@ -114,7 +108,7 @@ SimulatorWidget::SimulatorWidget(QWidget * parent, SimulatorInterface * simulato
   vJoyLeft = new VirtualJoystickWidget(this, 'L');
   ui->leftStickLayout->addWidget(vJoyLeft);
 
-  vJoyRight = new VirtualJoystickWidget(this, 'R', (m_board == Board::BOARD_TARANIS_XLITE || m_board == Board::BOARD_TARANIS_XLITES ? false : true));  // TODO: maybe remove trims for both joysticks and add a cross in the middle?
+  vJoyRight = new VirtualJoystickWidget(this, 'R', (m_board == Board::BOARD_TARANIS_XLITE ? false : true));  // TODO: maybe remove trims for both joysticks and add a cross in the middle?
   ui->rightStickLayout->addWidget(vJoyRight);
 
   connect(vJoyLeft, &VirtualJoystickWidget::valueChange, this, &SimulatorWidget::onRadioWidgetValueChange);
@@ -247,7 +241,7 @@ bool SimulatorWidget::setStartupData(const QByteArray & dataSource, bool fromFil
   }
   // Assume a byte array of radio data was passed, load it.
   else if (!dataSource.isEmpty()) {
-    ret = firmware->getEEpromInterface()->load(simuData, (uint8_t *)dataSource.constData(), Boards::getEEpromSize(m_board));
+    ret = firmware->getEEpromInterface()->load(simuData, (uint8_t *)dataSource.constData(), getEEpromSize(m_board));
     startupData = dataSource;  // save the data for start()
   }
   // we're :-(
@@ -380,7 +374,7 @@ bool SimulatorWidget::saveTempData()
             fh.close();
         }
 
-        if (!firmware->getEEpromInterface()->load(radioData, (uint8_t *)startupData.constData(), Boards::getEEpromSize(m_board))) {
+        if (!firmware->getEEpromInterface()->load(radioData, (uint8_t *)startupData.constData(), getEEpromSize(m_board))) {
           error = tr("Error saving data: could not get data from simulator interface.");
         }
         else {
@@ -495,7 +489,7 @@ void SimulatorWidget::onSimulatorStopped()
   m_heartbeatTimer.invalidate();
 
   if (simulator && !simulator->isRunning() && saveTempRadioData) {
-    startupData.fill(0, Boards::getEEpromSize(m_board));
+    startupData.fill(0, getEEpromSize(m_board));
     simulator->readRadioData(startupData);
   }
 }
@@ -524,7 +518,6 @@ void SimulatorWidget::shutdown()
 
 void SimulatorWidget::setRadioProfileId(int value)
 {
-  Q_ASSERT(value >= 0);
   radioProfileId = value;
   emit simulatorVolumeGainChange(g.profile[radioProfileId].volumeGain());
 }

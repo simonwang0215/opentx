@@ -48,7 +48,7 @@ class TrainerMix {
     RawSwitch swtch;
     int weight;
     unsigned int mode;   // off, add-mode, subst-mode
-    void clear() { memset(reinterpret_cast<void *>(this), 0, sizeof(TrainerMix)); }
+    void clear() { memset(this, 0, sizeof(TrainerMix)); }
 };
 
 class TrainerData {
@@ -56,7 +56,7 @@ class TrainerData {
     TrainerData() { clear(); }
     int         calib[4];
     TrainerMix  mix[4];
-    void clear() { memset(reinterpret_cast<void *>(this), 0, sizeof(TrainerData)); }
+    void clear() { memset(this, 0, sizeof(TrainerData)); }
 };
 
 class GeneralSettings {
@@ -102,7 +102,6 @@ class GeneralSettings {
     bool      disableAlarmWarning;
     bool      disableRssiPoweroffAlarm;
     unsigned int       usbMode;
-    unsigned int       jackMode;
     BeeperMode hapticMode;
     unsigned int   stickMode; // TODO enum
     int       timezone;
@@ -167,10 +166,6 @@ class GeneralSettings {
     char themeName[8+1];
     typedef uint8_t ThemeOptionData[8+1];
     ThemeOptionData themeOptionValue[5];
-    
-    char registrationId[8+1];
-    int gyroMax;
-    int gyroOffset;
 
     bool switchPositionAllowedTaranis(int index) const;
     bool switchSourceAllowedTaranis(int index) const;

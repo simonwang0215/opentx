@@ -48,42 +48,36 @@
 #include "storage.h"
 #include "translations.h"
 
-#include "dialogs/filesyncdialog.h"
-
 #include <QtGui>
+#include <QNetworkProxyFactory>
 #include <QFileInfo>
 #include <QDesktopServices>
-#include <QMessageBox>
-#include <QNetworkAccessManager>
-#include <QNetworkProxyFactory>
-#include <QNetworkReply>
-#include <QNetworkRequest>
 
-// update check flags
-#define CHECK_COMPANION        1
-#define CHECK_FIRMWARE         2
-#define INTERACTIVE_DOWNLOAD   4
-#define AUTOMATIC_DOWNLOAD     8
+#define OPENTX_DOWNLOADS_PAGE_URL         "http://www.open-tx.org/downloads"
+#define DONATE_STR                        "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QUZ48K4SEXDP2"
 
-#define OPENTX_DOWNLOADS_PAGE_URL         QStringLiteral("http://www.open-tx.org/downloads")
-#define DONATE_STR                        QStringLiteral("https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=QUZ48K4SEXDP2")
-
-#ifdef Q_OS_MACOS
-  #define COMPANION_STAMP                 QStringLiteral("companion-macosx.stamp")
-  #define COMPANION_INSTALLER             QStringLiteral("macosx/opentx-companion-%1.dmg")
+#ifdef __APPLE__
+  #define COMPANION_STAMP                 "companion-macosx.stamp"
+  #define COMPANION_INSTALLER             "macosx/opentx-companion-%1.dmg"
   #define COMPANION_FILEMASK              QT_TRANSLATE_NOOP("MainWindow", "Diskimage (*.dmg)")
   #define COMPANION_INSTALL_QUESTION      QT_TRANSLATE_NOOP("MainWindow", "Would you like to open the disk image to install the new version?")
-#elif defined(Q_OS_WIN)
-  #define COMPANION_STAMP                 QStringLiteral("companion-windows.stamp")
-  #define COMPANION_INSTALLER             QStringLiteral("windows/companion-windows-%1.exe")
+#elif WIN32
+  #define COMPANION_STAMP                 "companion-windows.stamp"
+  #define COMPANION_INSTALLER             "windows/companion-windows-%1.exe"
   #define COMPANION_FILEMASK              QT_TRANSLATE_NOOP("MainWindow", "Executable (*.exe)")
   #define COMPANION_INSTALL_QUESTION      QT_TRANSLATE_NOOP("MainWindow", "Would you like to launch the installer?")
 #else
-  #define COMPANION_STAMP                 QStringLiteral("companion-linux.stamp")
+  #define COMPANION_STAMP                 "companion-linux.stamp"
   #define COMPANION_INSTALLER             "" // no automated updates for linux
-  #define COMPANION_FILEMASK              QStringLiteral("*.*")
+  #define COMPANION_FILEMASK              "*.*"
   #define COMPANION_INSTALL_QUESTION      QT_TRANSLATE_NOOP("MainWindow", "Would you like to launch the installer?")
 #endif
+
+const char * const OPENTX_COMPANION_DOWNLOAD_URL[] = {
+  "https://downloads.open-tx.org/2.2/release/companion",
+  "https://downloads.open-tx.org/2.2/rc/companion",
+  "https://downloads.open-tx.org/2.2/nightlies/companion"
+};
 
 MainWindow::MainWindow():
   downloadDialog_forWait(nullptr),
@@ -110,11 +104,14 @@ MainWindow::MainWindow():
   createMenus();
   createToolBars();
   retranslateUi();
+  updateMenus();
 
-  initWindowOptions();
+  setIconThemeSize(g.iconSize());
+  restoreGeometry(g.mainWinGeo());
+  restoreState(g.mainWinState());
+  setTabbedWindows(g.tabbedMdi());
 
   connect(windowsListActions, &QActionGroup::triggered, this, &MainWindow::onChangeWindowAction);
-  connect(&g, &AppData::currentProfileChanged, this, &MainWindow::onCurrentProfileChanged);
 
   // give time to the splash to disappear and main window to open before starting updates
   int updateDelay = 1000;
@@ -130,10 +127,7 @@ MainWindow::MainWindow():
   else {
     if (!g.previousVersion().isEmpty())
       g.warningId(g.warningId() | AppMessages::MSG_UPGRADED);
-    if (checkProfileRadioExists(g.sessionId()))
-      QTimer::singleShot(updateDelay, this, SLOT(doAutoUpdates()));
-    else
-      g.warningId(g.warningId() | AppMessages::MSG_NO_RADIO_TYPE);
+    QTimer::singleShot(updateDelay, this, SLOT(doAutoUpdates()));
   }
   QTimer::singleShot(updateDelay, this, SLOT(displayWarnings()));
 
@@ -184,36 +178,45 @@ MainWindow::~MainWindow()
 {
   if (windowsListActions) {
     delete windowsListActions;
-    windowsListActions = nullptr;
+    windowsListActions = NULL;
   }
-}
-
-void MainWindow::initWindowOptions()
-{
-  updateMenus();
-  setIconThemeSize(g.iconSize());
-  restoreGeometry(g.mainWinGeo());
-  restoreState(g.mainWinState());
-  setTabbedWindows(g.tabbedMdi());
 }
 
 void MainWindow::displayWarnings()
 {
-  static int shownMsgs = 0;
-  const int showMsgs = g.warningId();
-  int msgId = 0;
-  for (int i = 1; i < AppMessages::MSG_ENUM_END; i <<= 1) {
-    if ((showMsgs & i) && !(shownMsgs & i)) {
-      msgId = i;
-      break;
-    }
+  using namespace AppMessages;
+  static uint shownMsgs = 0;
+  int showMsgs = g.warningId();
+  int msgId;
+  QString infoTxt;
+
+  if ((showMsgs & MSG_WELCOME) && !(shownMsgs & MSG_WELCOME)) {
+    infoTxt = CPN_STR_MSG_WELCOME.arg(VERSION);
+    msgId = MSG_WELCOME;
   }
-  if (!msgId)
+  else if ((showMsgs & MSG_UPGRADED) && !(shownMsgs & MSG_UPGRADED)) {
+    infoTxt = CPN_STR_MSG_UPGRADED.arg(VERSION);
+    msgId = MSG_UPGRADED;
+  }
+  else {
     return;
-  AppMessages::displayMessage(msgId, this);
+  }
+
+  QMessageBox msgBox(this);
+  msgBox.setWindowTitle(CPN_STR_APP_NAME);
+  msgBox.setIcon(QMessageBox::Information);
+  msgBox.setStandardButtons(QMessageBox::Ok);
+  msgBox.setInformativeText(infoTxt);
+  QCheckBox * cb = new QCheckBox(tr("Show this message again at next startup?"), &msgBox);
+  msgBox.setCheckBox(cb);
+
+  msgBox.exec();
+
   shownMsgs |= msgId;
-  if (shownMsgs != showMsgs)
-    displayWarnings();  // in case more warnings need showing
+  if (!cb->isChecked())
+    g.warningId(showMsgs & ~msgId);
+
+  displayWarnings();  // in case more warnings need showing
 }
 
 void MainWindow::doAutoUpdates()
@@ -227,36 +230,42 @@ void MainWindow::doAutoUpdates()
 
 void MainWindow::doUpdates()
 {
-  checkForUpdatesState = CHECK_COMPANION | CHECK_FIRMWARE | INTERACTIVE_DOWNLOAD;
+  checkForUpdatesState = CHECK_COMPANION | CHECK_FIRMWARE | SHOW_DIALOG_WAIT;
   checkForUpdates();
 }
 
 void MainWindow::checkForFirmwareUpdate()
 {
-  checkForUpdatesState = CHECK_FIRMWARE | INTERACTIVE_DOWNLOAD;
+  checkForUpdatesState = CHECK_FIRMWARE | SHOW_DIALOG_WAIT;
   checkForUpdates();
 }
 
 void MainWindow::dowloadLastFirmwareUpdate()
 {
-  checkForUpdatesState = CHECK_FIRMWARE | AUTOMATIC_DOWNLOAD | INTERACTIVE_DOWNLOAD;
+  checkForUpdatesState = CHECK_FIRMWARE | AUTOMATIC_DOWNLOAD | SHOW_DIALOG_WAIT;
   checkForUpdates();
 }
 
-QString MainWindow::getCompanionUpdateBaseUrl() const
+QString MainWindow::getCompanionUpdateBaseUrl()
 {
-  return g.openTxCurrentDownloadBranchUrl() % QStringLiteral("companion/");
+  return OPENTX_COMPANION_DOWNLOAD_URL[g.boundedOpenTxBranch()];
 }
 
 void MainWindow::checkForUpdates()
 {
-  if (!(checkForUpdatesState & (CHECK_COMPANION | CHECK_FIRMWARE))) {
+  if (!checkForUpdatesState) {
+    closeUpdatesWaitDialog();
     if (networkManager) {
       networkManager->deleteLater();
       networkManager = nullptr;
     }
-    checkForUpdatesState = 0;
     return;
+  }
+
+  if (checkForUpdatesState & SHOW_DIALOG_WAIT) {
+    checkForUpdatesState -= SHOW_DIALOG_WAIT;
+    downloadDialog_forWait = new downloadDialog(NULL, tr("Checking for updates"));
+    downloadDialog_forWait->show();
   }
 
   if (networkManager)
@@ -267,9 +276,7 @@ void MainWindow::checkForUpdates()
   QUrl url;
   if (checkForUpdatesState & CHECK_COMPANION) {
     checkForUpdatesState -= CHECK_COMPANION;
-    if (checkForUpdatesState & INTERACTIVE_DOWNLOAD)
-      openUpdatesWaitDialog();
-    url.setUrl(getCompanionUpdateBaseUrl() % COMPANION_STAMP);
+    url.setUrl(QString("%1/%2").arg(getCompanionUpdateBaseUrl()).arg(COMPANION_STAMP));
     connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::checkForCompanionUpdateFinished);
     qDebug() << "Checking for Companion update " << url.url();
   }
@@ -277,8 +284,6 @@ void MainWindow::checkForUpdates()
     checkForUpdatesState -= CHECK_FIRMWARE;
     const QString stamp = getCurrentFirmware()->getStampUrl();
     if (!stamp.isEmpty()) {
-      if (checkForUpdatesState & INTERACTIVE_DOWNLOAD)
-        openUpdatesWaitDialog();
       url.setUrl(stamp);
       connect(networkManager, &QNetworkAccessManager::finished, this, &MainWindow::checkForFirmwareUpdateFinished);
       qDebug() << "Checking for firmware update " << url.url();
@@ -291,23 +296,14 @@ void MainWindow::checkForUpdates()
 
   QNetworkRequest request(url);
   request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-  QNetworkReply * repl = networkManager->get(request);
-  if (downloadDialog_forWait)
-    connect(downloadDialog_forWait, &DownloadDialog::rejected, repl, &QNetworkReply::abort);
+  networkManager->get(request);
 }
 
-void MainWindow::onUpdatesError(const QString &err)
+void MainWindow::onUpdatesError()
 {
-  QMessageBox::warning(this, CPN_STR_APP_NAME, err);
-  checkForUpdates();
-}
-
-void MainWindow::openUpdatesWaitDialog()
-{
-  if (!downloadDialog_forWait) {
-    downloadDialog_forWait = new DownloadDialog(nullptr, tr("Checking for updates"));
-    downloadDialog_forWait->show();
-  }
+  checkForUpdatesState = 0;
+  closeUpdatesWaitDialog();
+  QMessageBox::warning(this, CPN_STR_APP_NAME, tr("Unable to check for updates."));
 }
 
 void MainWindow::closeUpdatesWaitDialog()
@@ -315,11 +311,11 @@ void MainWindow::closeUpdatesWaitDialog()
   if (downloadDialog_forWait) {
     downloadDialog_forWait->close();
     delete downloadDialog_forWait;
-    downloadDialog_forWait = nullptr;
+    downloadDialog_forWait = NULL;
   }
 }
 
-QString MainWindow::seekCodeString(const QByteArray & qba, const QString & label) const
+QString MainWindow::seekCodeString(const QByteArray & qba, const QString & label)
 {
   int posLabel = qba.indexOf(label);
   if (posLabel < 0)
@@ -337,11 +333,9 @@ void MainWindow::checkForCompanionUpdateFinished(QNetworkReply * reply)
 {
   QByteArray qba = reply->readAll();
   reply->deleteLater();
-  closeUpdatesWaitDialog();
-
   QString version = seekCodeString(qba, "VERSION");
   if (version.isNull())
-    return onUpdatesError(tr("Companion update check failed, new version information not found."));
+    return onUpdatesError();
 
   int webVersion = version2index(version);
 
@@ -359,7 +353,7 @@ void MainWindow::checkForCompanionUpdateFinished(QNetworkReply * reply)
 
       if (!fileName.isEmpty()) {
         g.updatesDir(QFileInfo(fileName).dir().absolutePath());
-        DownloadDialog * dd = new DownloadDialog(this, getCompanionUpdateBaseUrl() % QString(COMPANION_INSTALLER).arg(version), fileName);
+        downloadDialog * dd = new downloadDialog(this, QString("%1/%2").arg(getCompanionUpdateBaseUrl()).arg(QString(COMPANION_INSTALLER).arg(version)), fileName);
         installer_fileName = fileName;
         connect(dd, SIGNAL(accepted()), this, SLOT(updateDownloaded()));
         dd->exec();
@@ -370,7 +364,7 @@ void MainWindow::checkForCompanionUpdateFinished(QNetworkReply * reply)
 #endif
   }
   else {
-    if (checkForUpdatesState == INTERACTIVE_DOWNLOAD) {
+    if (downloadDialog_forWait && checkForUpdatesState==0) {
       QMessageBox::information(this, CPN_STR_APP_NAME, tr("No updates available at this time."));
     }
   }
@@ -442,7 +436,6 @@ void MainWindow::firmwareDownloadAccepted()
       writeFlash(g.profile[g.id()].fwName());
     }
   }
-  emit firmwareDownloadCompleted();
 }
 
 void MainWindow::checkForFirmwareUpdateFinished(QNetworkReply * reply)
@@ -450,16 +443,16 @@ void MainWindow::checkForFirmwareUpdateFinished(QNetworkReply * reply)
   bool download = false;
   bool ignore = false;
 
-  const QByteArray qba = reply->readAll();
+  QByteArray qba = reply->readAll();
   reply->deleteLater();
-  closeUpdatesWaitDialog();
+  QString versionString = seekCodeString(qba, "VERSION");
+  QString dateString = seekCodeString(qba, "DATE");
+  if (versionString.isNull() || dateString.isNull())
+    return onUpdatesError();
 
-  const QString versionString = seekCodeString(qba, "VERSION");
-  const QString dateString = seekCodeString(qba, "DATE");
-  long version;
-
-  if (versionString.isNull() || dateString.isNull() || (version = version2index(versionString)) <= 0)
-    return onUpdatesError(tr("Firmware update check failed, new version information not found or invalid."));
+  long version = version2index(versionString);
+  if (version <= 0)
+    return onUpdatesError();
 
   QString fullVersionString = QString("%1 (%2)").arg(versionString).arg(dateString);
 
@@ -479,7 +472,7 @@ void MainWindow::checkForFirmwareUpdateFinished(QNetworkReply * reply)
 
     if (currentVersion == 0) {
       QString rn = getCurrentFirmware()->getReleaseNotesUrl();
-      QAbstractButton *rnButton = nullptr;
+      QAbstractButton *rnButton = NULL;
       msgBox.setText(tr("Firmware %1 does not seem to have ever been downloaded.\nVersion %2 is available.\nDo you want to download it now?\n\nWe recommend you view the release notes using the button below to learn about any changes that may be important to you.")
                      .arg(Firmware::getCurrentVariant()->getId()).arg(fullVersionString));
       QAbstractButton *YesButton = msgBox.addButton(trUtf8("Yes"), QMessageBox::YesRole);
@@ -508,7 +501,7 @@ void MainWindow::checkForFirmwareUpdateFinished(QNetworkReply * reply)
     }
     else if (version > currentVersion) {
       QString rn = getCurrentFirmware()->getReleaseNotesUrl();
-      QAbstractButton *rnButton = nullptr;
+      QAbstractButton *rnButton = NULL;
       msgBox.setText(tr("A new version of %1 firmware is available:\n  - current is %2\n  - newer is %3\n\nDo you want to download it now?\n\nWe recommend you view the release notes using the button below to learn about any changes that may be important to you.")
                      .arg(Firmware::getCurrentVariant()->getId()).arg(currentVersionString).arg(fullVersionString));
       QAbstractButton *YesButton = msgBox.addButton(trUtf8("Yes"), QMessageBox::YesRole);
@@ -539,7 +532,7 @@ void MainWindow::checkForFirmwareUpdateFinished(QNetworkReply * reply)
       }
     }
     else {
-      if (checkForUpdatesState == INTERACTIVE_DOWNLOAD) {
+      if (downloadDialog_forWait && checkForUpdatesState==0) {
         QMessageBox::information(this, CPN_STR_APP_NAME, tr("No updates available at this time."));
       }
     }
@@ -574,7 +567,7 @@ void MainWindow::startFirmwareDownload()
   if (!filename.isEmpty()) {
     g.profile[g.id()].fwName(filename);
     g.flashDir(QFileInfo(filename).dir().absolutePath());
-    DownloadDialog * dd = new DownloadDialog(this, url, filename);
+    downloadDialog * dd = new downloadDialog(this, url, filename);
     connect(dd, SIGNAL(accepted()), this, SLOT(firmwareDownloadAccepted()));
     dd->exec();
   }
@@ -759,21 +752,12 @@ void MainWindow::openRecentFile()
   }
 }
 
-bool MainWindow::checkProfileRadioExists(int profId)
-{
-  const QString profType = g.getProfile(profId).fwType();
-  return (Firmware::getFirmwareForId(profType)->getFirmwareBase()->getId() == profType.section('-', 0, 1));
-}
-
 bool MainWindow::loadProfileId(const unsigned pid)  // TODO Load all variables - Also HW!
 {
   if (pid >= MAX_PROFILES)
     return false;
 
-  Firmware * newFw = Firmware::getFirmwareForId(g.getProfile(pid).fwType());
-  // warn if the selected profile doesn't exist
-  if (!checkProfileRadioExists(pid))
-    AppMessages::displayMessage(AppMessages::MSG_NO_RADIO_TYPE, this);
+  Firmware * newFw = Firmware::getFirmwareForId(g.profile[pid].fwType());
   // warn if we're switching between incompatible board types and any files have been modified
   if (!Boards::isBoardCompatible(Firmware::getCurrentVariant()->getBoard(), newFw->getBoard()) && anyChildrenDirty()) {
     if (QMessageBox::question(this, CPN_STR_APP_NAME,
@@ -786,6 +770,9 @@ bool MainWindow::loadProfileId(const unsigned pid)  // TODO Load all variables -
 
   // Set the new profile number
   g.id(pid);
+  Firmware::setCurrentVariant(newFw);
+  emit firmwareChanged();
+  updateMenus();
   return true;
 }
 
@@ -805,7 +792,7 @@ void MainWindow::appPrefs()
   AppPreferencesDialog * dialog = new AppPreferencesDialog(this);
   dialog->setMainWinHasDirtyChild(anyChildrenDirty());
   connect(dialog, &AppPreferencesDialog::firmwareProfileAboutToChange, this, &MainWindow::saveAll);
-  connect(dialog, &AppPreferencesDialog::firmwareProfileChanged, this, &MainWindow::onCurrentProfileChanged);
+  connect(dialog, &AppPreferencesDialog::firmwareProfileChanged, this, &MainWindow::loadProfileId);
   dialog->exec();
   dialog->deleteLater();
 }
@@ -824,41 +811,254 @@ void MainWindow::contributors()
   dialog->deleteLater();
 }
 
-void MainWindow::sdsync()
+// Create a widget with a line edit and folder select button and handles all interactions. Features autosuggest
+//   path hints while typing, invalid paths shown in red. The label string is only for dialog title, not a QLabel.
+// This should probably be moved some place more reusable, esp. the QFileSystemModel.
+QWidget * folderSelectorWidget(QString * path, const QString & label, QWidget * parent)
 {
-  // remember user-selectable options for duration of session  TODO: save to settings
-  static SyncProcess::SyncOptions syncOpts;
-  static bool showExtraOptions = false;
-  QStringList errorMsgs;
+  static QFileSystemModel fileModel;
+  static bool init = false;
+  if (!init) {
+    init = true;
+    fileModel.setFilter(QDir::Dirs);
+    fileModel.setRootPath("/");
+  }
 
-  if (syncOpts.folderA.isEmpty())
-    syncOpts.folderA = g.profile[g.id()].sdPath();
-  if (syncOpts.folderB.isEmpty())
-    syncOpts.folderB = findMassstoragePath("SOUNDS", true);
+  QWidget * fsw = new QWidget(parent);
+  QLineEdit * le = new QLineEdit(parent);
+  QCompleter * fsc = new QCompleter(fsw);
+  fsc->setModel(&fileModel);
+  //fsc->setCompletionMode(QCompleter::InlineCompletion);
+  le->setCompleter(fsc);
 
-  if (syncOpts.folderA.isEmpty())
-    errorMsgs << tr("No local SD structure path configured!");
-  if (syncOpts.folderB.isEmpty())
-    errorMsgs << tr("No Radio or SD card detected!");
+  QToolButton * btn = new QToolButton(fsw);
+  btn->setIcon(CompanionIcon("open.png"));
+  QHBoxLayout * l = new QHBoxLayout(fsw);
+  l->setContentsMargins(0,0,0,0);
+  l->setSpacing(3);
+  l->addWidget(le);
+  l->addWidget(btn);
 
-  QPointer<FileSyncDialog> dlg = new FileSyncDialog(this, syncOpts);
-  dlg->setAttribute(Qt::WA_DeleteOnClose, true);
-  dlg->setWindowFlags(dlg->windowFlags() | Qt::WindowStaysOnTopHint);
-  dlg->setWindowTitle(tr("Synchronize SD"));
-  dlg->setWindowIcon(CompanionIcon("sdsync.png"));
-  dlg->setFolderNameA(tr("Local Folder"));
-  dlg->setFolderNameB(tr("Radio Folder"));
-  dlg->toggleExtraOptions(showExtraOptions);
-  if (errorMsgs.size())
-    dlg->setStatusText(errorMsgs.join('\n'), QtWarningMsg);
-  dlg->show();
-
-  connect(dlg.data(), &FileSyncDialog::finished, [=](int) {
-    if (!dlg.isNull()) {
-      syncOpts = dlg->syncOptions();
-      showExtraOptions = dlg->extraOptionsVisible();
+  QObject::connect(btn, &QToolButton::clicked, [=]() {
+    QString dir = QFileDialog::getExistingDirectory(parent, label, le->text(), 0);
+    if (!dir.isEmpty()) {
+      le->setText(QDir::toNativeSeparators(dir));
+      le->setFocus();
     }
   });
+
+  QObject::connect(le, &QLineEdit::textChanged, [=](const QString & text) {
+    *path = text;
+    if (QFile::exists(text))
+      le->setStyleSheet("");
+    else
+      le->setStyleSheet("QLineEdit {color: red;}");
+  });
+  le->setText(QDir::toNativeSeparators(*path));
+
+  return fsw;
+}
+
+void MainWindow::sdsync()
+{
+  const QString dlgTtl = tr("Synchronize SD");
+  const QIcon dlgIcn = CompanionIcon("sdsync.png");
+  const QString srcArw = CPN_STR_SW_INDICATOR_UP % " ";
+  const QString dstArw = CPN_STR_SW_INDICATOR_DN % " ";
+  QStringList errorMsgs;
+
+  // remember user-selectable options for duration of session
+  static QString sourcePath;
+  static QString destPath;
+  static int syncDirection = SyncProcess::SYNC_A2B_B2A;
+  static int compareType = SyncProcess::OVERWR_NEWER_IF_DIFF;
+  static int maxFileSize = 2 * 1024 * 1024;  // Bytes
+  static bool dryRun = false;
+
+  if (sourcePath.isEmpty())
+    sourcePath = g.profile[g.id()].sdPath();
+  if (destPath.isEmpty())
+    destPath = findMassstoragePath("SOUNDS").replace(QRegExp("[/\\\\]?SOUNDS"), "");
+
+  if (sourcePath.isEmpty())
+    errorMsgs << tr("No local SD structure path configured!");
+  if (destPath.isEmpty())
+    errorMsgs << tr("No Radio or SD card detected!");
+
+  QDialog dlg(this);
+  dlg.setWindowTitle(dlgTtl % tr(" :: Options"));
+  dlg.setWindowIcon(dlgIcn);
+  dlg.setSizeGripEnabled(true);
+  dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+  QLabel * lblSrc = new QLabel(tr("Local Folder:"), &dlg);
+  QWidget * wdgSrc = folderSelectorWidget(&sourcePath, lblSrc->text(), &dlg);
+
+  QLabel * lblDst = new QLabel(tr("Radio Folder:"), &dlg);
+  QWidget * wdgDst = folderSelectorWidget(&destPath, lblDst->text(), &dlg);
+
+  QLabel * lbDir = new QLabel(tr("Sync. Direction:"), &dlg);
+  QComboBox * syncDir = new QComboBox(&dlg);
+  syncDir->addItem(tr("%1%2 Both directions, to radio folder first").arg(dstArw, srcArw), SyncProcess::SYNC_A2B_B2A);
+  syncDir->addItem(tr("%1%2 Both directions, to local folder first").arg(srcArw, dstArw), SyncProcess::SYNC_B2A_A2B);
+  syncDir->addItem(tr(" %1  Only from local folder to radio folder").arg(dstArw), SyncProcess::SYNC_A2B);
+  syncDir->addItem(tr(" %1  Only from radio folder to local folder").arg(srcArw), SyncProcess::SYNC_B2A);
+  syncDir->setCurrentIndex(-1);  // we set the default option later
+
+  QLabel * lbMode = new QLabel(tr("Existing Files:"), &dlg);
+  QComboBox * copyMode = new QComboBox(&dlg);
+  copyMode->setToolTip(tr("How to handle overwriting files which already exist in the destination folder."));
+  copyMode->addItem(tr("Copy only if newer and different (compare contents)"), SyncProcess::OVERWR_NEWER_IF_DIFF);
+  copyMode->addItem(tr("Copy only if newer (do not compare contents)"), SyncProcess::OVERWR_NEWER_ALWAYS);
+  copyMode->addItem(tr("Copy only if different (ignore file time stamps)"), SyncProcess::OVERWR_IF_DIFF);
+  copyMode->addItem(tr("Always copy (force overwite existing files)"), SyncProcess::OVERWR_ALWAYS);
+
+  QLabel * lbSize = new QLabel(tr("Max. File Size:"), &dlg);
+  QSpinBox * maxSize = new QSpinBox(&dlg);
+  maxSize->setRange(0, 100 * 1024);
+  maxSize->setAccelerated(true);
+  maxSize->setSpecialValueText(tr("Any size"));
+  maxSize->setToolTip(tr("Skip files larger than this size. Enter zero for unlimited."));
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 3, 0))
+  maxSize->setGroupSeparatorShown(true);
+#endif
+
+  QCheckBox * testRun = new QCheckBox(tr("Test-run only"), &dlg);
+  testRun->setToolTip(tr("Run as normal but do not actually copy anything. Useful for verifying results before real sync."));
+  connect(testRun, &QCheckBox::toggled, [=](bool on) { dryRun = on; });
+
+  // layout to hold size spinbox and checkbox option(s)
+  QHBoxLayout * hlay1 = new QHBoxLayout();
+  hlay1->addWidget(maxSize, 1);
+  hlay1->addWidget(testRun);
+
+  // dialog OK/Cancel buttons
+  QDialogButtonBox * bb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+
+  // Create main layout and add everything
+  QGridLayout * dlgL = new QGridLayout(&dlg);
+  dlgL->setSizeConstraint(QLayout::SetFixedSize);
+  int row = 0;
+  if (errorMsgs.size()) {
+    QLabel * lblWarn = new QLabel(QString(errorMsgs.join('\n')), &dlg);
+    lblWarn->setStyleSheet("QLabel { color: red; }");
+    dlgL->addWidget(lblWarn, row++, 0, 1, 2);
+  }
+  dlgL->addWidget(lblSrc, row, 0);
+  dlgL->addWidget(wdgSrc, row++, 1);
+  dlgL->addWidget(lblDst, row, 0);
+  dlgL->addWidget(wdgDst, row++, 1);
+  dlgL->addWidget(lbDir, row, 0);
+  dlgL->addWidget(syncDir, row++, 1);
+  dlgL->addWidget(lbMode, row, 0);
+  dlgL->addWidget(copyMode, row++, 1);
+  dlgL->addWidget(lbSize, row, 0);
+  dlgL->addLayout(hlay1, row++, 1);
+  dlgL->addWidget(bb, row++, 0, 1, 2);
+  dlgL->setRowStretch(row, 1);
+
+  connect(copyMode, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [=](int) {
+    compareType = copyMode->currentData().toInt();
+  });
+
+  // function to dis/enable the OVERWR_ALWAYS option depending on sync direction
+  connect(syncDir, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [=](int) {
+    int dir = syncDir->currentData().toInt();
+    int idx = copyMode->findData(SyncProcess::OVERWR_ALWAYS);
+    int flg = (dir == SyncProcess::SYNC_A2B || dir == SyncProcess::SYNC_B2A) ? 33 : 0;
+    if (!flg && idx == copyMode->currentIndex())
+      copyMode->setCurrentIndex(copyMode->findData(SyncProcess::OVERWR_NEWER_IF_DIFF));
+    copyMode->setItemData(idx, flg, Qt::UserRole - 1);
+    syncDirection = dir;
+  });
+
+  // function to set magnitude of file size spinbox, KB or MB
+  connect(maxSize, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged), [=](int value) {
+    int multi = maxSize->property("multi").isValid() ? maxSize->property("multi").toInt() : 0;
+    maxSize->blockSignals(true);
+    if (value >= 10 * 1024 && multi != 1024 * 1024) {
+      // KB -> MB
+      multi = 1024 * 1024;
+      maxSize->setValue(value / 1024);
+      maxSize->setMaximum(100);
+      maxSize->setSingleStep(1);
+      maxSize->setSuffix(tr(" MB"));
+    }
+    else if ((value < 10 && multi != 1024) || !multi) {
+      // MB -> KB
+      if (multi)
+        value *= 1024;
+      multi = 1024;
+      if (value == 9 * 1024)
+        value += 1024 - 32;  // avoid large jump when stepping from 10MB to 10,208KB
+      maxSize->setMaximum(100 * 1024);
+      maxSize->setValue(value);
+      maxSize->setSingleStep(32);
+      maxSize->setSuffix(tr(" KB"));
+    }
+    maxSize->setProperty("multi", multi);
+    maxSize->blockSignals(false);
+    maxFileSize = value * multi;
+  });
+
+  copyMode->setCurrentIndex(copyMode->findData(compareType));
+  syncDir->setCurrentIndex(syncDir->findData(syncDirection));
+  maxSize->setValue(maxFileSize / 1024);
+  testRun->setChecked(dryRun);
+
+  connect(bb, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+  connect(bb, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+  // to restart dialog on error/etc
+  openDialog:
+
+  // show the modal options dialog
+  if (dlg.exec() == QDialog::Rejected)
+    return;
+
+  // validate
+  errorMsgs.clear();
+  if (sourcePath == destPath)
+    errorMsgs << tr("Source and destination folders are the same!");
+  if (sourcePath.isEmpty() || !QFile::exists(sourcePath))
+    errorMsgs << tr("Source folder not found: %1").arg(sourcePath);
+  if (destPath.isEmpty() || !QFile::exists(destPath))
+    errorMsgs << tr("Destination folder not found: %1").arg(destPath);
+
+  if (!errorMsgs.isEmpty()) {
+    QMessageBox::warning(this, dlgTtl % tr(" :: Error"), errorMsgs.join('\n'));
+    goto openDialog;
+  }
+
+  // set up the progress dialog and the sync process worker
+  ProgressDialog * progressDlg = new ProgressDialog(this, dlgTtl % tr(" :: Progress"), dlgIcn);
+  progressDlg->setAttribute(Qt::WA_DeleteOnClose, true);
+  ProgressWidget * progWidget = progressDlg->progress();
+  SyncProcess * syncProcess = new SyncProcess(sourcePath, destPath, syncDirection, compareType, maxFileSize, dryRun);
+
+  // move sync process to separate thread, we only use signals/slots from here on...
+  QThread * syncThread = new QThread(this);
+  syncProcess->moveToThread(syncThread);
+
+  // ...and quite a few of them!
+  connect(this,        &MainWindow::startSync,         syncProcess, &SyncProcess::run);
+  connect(syncThread,  &QThread::finished,             syncProcess, &SyncProcess::deleteLater);
+  connect(syncProcess, &SyncProcess::finished,         syncThread,  &QThread::quit);
+  connect(syncProcess, &SyncProcess::destroyed,        syncThread,  &QThread::quit);
+  connect(syncProcess, &SyncProcess::destroyed,        syncThread,  &QThread::deleteLater);
+  connect(syncProcess, &SyncProcess::fileCountChanged, progWidget,  &ProgressWidget::setMaximum);
+  connect(syncProcess, &SyncProcess::progressStep,     progWidget,  &ProgressWidget::setValue);
+  connect(syncProcess, &SyncProcess::progressMessage,  progWidget,  &ProgressWidget::addMessage);
+  connect(syncProcess, &SyncProcess::statusMessage,    progWidget,  &ProgressWidget::setInfo);
+  connect(syncProcess, &SyncProcess::started,          progressDlg, &ProgressDialog::setProcessStarted);
+  connect(syncProcess, &SyncProcess::finished,         progressDlg, &ProgressDialog::setProcessStopped);
+  connect(syncProcess, &SyncProcess::finished,         [=]()        { QApplication::alert(this); });
+  connect(progressDlg, &ProgressDialog::rejected,      syncProcess, &SyncProcess::stop);
+  connect(progressDlg, &ProgressDialog::rejected,      syncProcess, &SyncProcess::deleteLater);
+
+  // go (finally)
+  syncThread->start();
+  emit startSync();
 }
 
 void MainWindow::changelog()
@@ -1011,7 +1211,7 @@ void MainWindow::about()
   aboutStr.append("<br/><br/>");
   aboutStr.append(QString("Version %1, %2").arg(VERSION).arg(__DATE__));
   aboutStr.append("<br/><br/>");
-  aboutStr.append(tr("Copyright OpenTX Team") + "<br/>&copy; 2011-2019<br/>");
+  aboutStr.append(tr("Copyright OpenTX Team") + "<br/>&copy; 2011-2017<br/>");
   QMessageBox msgBox(this);
   msgBox.setWindowIcon(CompanionIcon("information.png"));
   msgBox.setWindowTitle(tr("About Companion"));
@@ -1190,9 +1390,6 @@ void MainWindow::retranslateUi(bool showMsg)
   trAct(copyProfileAct,     tr("Copy Current Radio Profile"),      tr("Duplicate current Radio Settings Profile"));
   trAct(deleteProfileAct,   tr("Delete Current Radio Profile..."), tr("Delete the current Radio Settings Profile"));
 
-  trAct(exportSettingsAct,   tr("Export Application Settings.."),  tr("Save all the current %1 and Simulator settings (including radio profiles) to a file.").arg(CPN_STR_APP_NAME));
-  trAct(importSettingsAct,   tr("Import Application Settings.."),  tr("Load %1 and Simulator settings from a prevously exported settings file.").arg(CPN_STR_APP_NAME));
-
   trAct(actTabbedWindows,   tr("Tabbed Windows"),    tr("Use tabs to arrange open windows."));
   trAct(actTileWindows,     tr("Tile Windows"),      tr("Arrange open windows across all the available space."));
   trAct(actCascadeWindows,  tr("Cascade Windows"),   tr("Arrange all open windows in a stack."));
@@ -1247,9 +1444,6 @@ void MainWindow::createActions()
   createProfileAct =   addAct("new.png",   SLOT(createProfile()));
   copyProfileAct   =   addAct("copy.png",  SLOT(copyProfile()));
   deleteProfileAct =   addAct("clear.png", SLOT(deleteCurrentProfile()));
-
-  exportSettingsAct =  addAct("saveas.png",  SLOT(exportSettings()));
-  importSettingsAct =  addAct("open.png",    SLOT(importSettings()));
 
   actTabbedWindows =   addAct("", SLOT(setTabbedWindows(bool)), 0, this, SIGNAL(triggered(bool)));
   actTileWindows =     addAct("", SLOT(tileSubWindows()),       0, mdiArea);
@@ -1324,9 +1518,6 @@ void MainWindow::createMenus()
   settingsMenu->addAction(profilesMenuAct);
   settingsMenu->addAction(editSplashAct);
   settingsMenu->addAction(burnConfigAct);
-  settingsMenu->addSeparator();
-  settingsMenu->addAction(exportSettingsAct);
-  settingsMenu->addAction(importSettingsAct);
 
   burnMenu = menuBar()->addMenu("");
   burnMenu->addAction(writeEepromAct);
@@ -1576,7 +1767,7 @@ void MainWindow::updateWindowActionTitle(const QMdiSubWindow * win, QAction * ac
 
 void MainWindow::onSubwindowTitleChanged()
 {
-  QMdiSubWindow * win = nullptr;
+  QMdiSubWindow * win = NULL;
   if ((win = qobject_cast<QMdiSubWindow *>(sender()->parent())))
     updateWindowActionTitle(win);
 }
@@ -1591,18 +1782,11 @@ void MainWindow::onChangeWindowAction(QAction * act)
   if (!act->isChecked())
     return;
 
-  QMdiSubWindow * win = nullptr;
+  QMdiSubWindow * win = NULL;
   if (act->property("window_ptr").canConvert<QMdiSubWindow *>())
     win = act->property("window_ptr").value<QMdiSubWindow *>();
   if (win)
     mdiArea->setActiveSubWindow(win);
-}
-
-void MainWindow::onCurrentProfileChanged()
-{
-  Firmware::setCurrentVariant(Firmware::getFirmwareForId(g.currentProfile().fwType()));
-  emit firmwareChanged();
-  updateMenus();
 }
 
 int MainWindow::newProfile(bool loadProfile)
@@ -1613,9 +1797,8 @@ int MainWindow::newProfile(bool loadProfile)
   if (i == MAX_PROFILES)  //Failed to find free slot
     return -1;
 
-  g.profile[i].init();
+  g.profile[i].init(i);
   g.profile[i].name(tr("New Radio"));
-  g.profile[i].fwType(Firmware::getDefaultVariant()->getId());
 
   if (loadProfile) {
     if (loadProfileId(i))
@@ -1658,75 +1841,13 @@ void MainWindow::deleteProfile(const int pid)
   if (ret != QMessageBox::Yes)
     return;
 
-  g.getProfile(pid).resetAll();
+  g.profile[pid].remove();
   loadProfileId(0);
 }
 
 void MainWindow::deleteCurrentProfile()
 {
   deleteProfile(g.id());
-}
-
-void MainWindow::exportSettings()
-{
-  Helpers::exportAppSettings();
-}
-
-void MainWindow::importSettings()
-{
-  if (anyChildrenDirty()) {
-    QMessageBox::warning(this, CPN_STR_APP_NAME, tr("Please save or close all modified files before importing settings"));
-    return;
-  }
-  QString resultMsg = tr("<html>" \
-    "<p>%1 and Simulator settings can be imported (restored) from a previosly saved export (backup) file. " \
-      "This will replace current settings with any settings found in the file.</p>" \
-    "<p>An automatic backup of the current settings will be attempted. But if the current settings are useful then it is recommended that you make a manual backup first.</p>" \
-    "<p>For best results when importing settings, <b>close any other %1 windows you may have open, and make sure the standalone Simulator application is not running.</p>" \
-    "<p>Do you wish to continue?</p>" \
-    "</html>").arg(CPN_STR_APP_NAME);
-
-  int ret = QMessageBox::question(this, tr("Confirm Settings Import"), resultMsg);
-  if (ret != QMessageBox::Yes)
-    return;
-
-  QString impFile = CPN_SETTINGS_BACKUP_DIR;
-  impFile = QFileDialog::getOpenFileName(this, tr("Select %1:").arg(CPN_STR_APP_SETTINGS_FILES), impFile, CPN_STR_APP_SETTINGS_FILTER);
-  if (impFile.isEmpty() || !QFileInfo(impFile).isReadable() || QFileInfo(impFile).isExecutable())
-    return;
-
-  // Try a backup first
-  QString expFile = CPN_SETTINGS_INI_PATH.arg(tr("backup") % " " % QDateTime::currentDateTime().toString("dd-MMM-yy HH-mm"));
-  if (!g.exportSettingsToFile(expFile, resultMsg)) {
-    resultMsg.append("\n" % tr("Press the 'Ignore' button to continue anyway."));
-    if (QMessageBox::warning(this, CPN_STR_APP_NAME, resultMsg, QMessageBox::Cancel, QMessageBox::Ignore) == QMessageBox::Cancel)
-      return;
-    expFile.clear();
-  }
-  const QString prevLoc = g.locale();
-
-  // Do the import
-  QSettings fromSettings(impFile, QSettings::IniFormat);
-  if (!g.importSettings(&fromSettings)) {
-    QMessageBox::critical(this, CPN_STR_APP_NAME, tr("The settings could not be imported."), QMessageBox::Ok, 0);
-    return;
-  }
-  resultMsg = tr("<html>" \
-                 "<p>New settings have been imported from:<br> %1.</p>" \
-                 "<p>%2 will now re-initialize.</p>" \
-                 "<p>Note that you may need to close and restart %2 before some settings like language and icon theme take effect.</p>" \
-                ).arg(impFile).arg(CPN_STR_APP_NAME);
-
-  if (!expFile.isEmpty())
-    resultMsg.append(tr("<p>The previous settings were backed up to:<br> %1</p>").arg(expFile));
-  resultMsg.append("</html>");
-  QMessageBox::information(this, CPN_STR_APP_NAME, resultMsg);
-
-  g.init();
-  initWindowOptions();
-  if (prevLoc != g.locale())
-    Translations::installTranslators();
-  onCurrentProfileChanged();
 }
 
 QString MainWindow::strippedName(const QString &fullFileName)

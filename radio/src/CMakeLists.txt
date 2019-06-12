@@ -1,7 +1,7 @@
 include(CMakeForceCompiler)
 include(Bitmaps)
 
-set(PCB_TYPES X9LITE X7 XLITE XLITES X9D X9D+ X9E X10 X12S SKY9X 9XRPRO AR9X)
+set(PCB_TYPES X7 XLITE X9D X9D+ X9E X10 X12S 9X 9XR 9X128 9XR128 9X2561 GRUVIN9X MEGA2560 SKY9X 9XRPRO AR9X)
 set(GUI_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL)
 set(TTS_LANGUAGES CZ DE EN ES FR IT PT SK SE PL HU NL RU)
 
@@ -46,8 +46,7 @@ option(TRACE_LUA_INTERNALS "Turn on traces for Lua internals" OFF)
 option(FRSKY_STICKS "Reverse sticks for FrSky sticks" OFF)
 option(NANO "Use nano newlib and binalloc")
 option(NIGHTLY_BUILD_WARNING "Warn this is a nightly build" OFF)
-option(R9M_PROTO_FLEX "Add R9M options for non certified firmwwares" OFF)
-option(FRSKY_RELEASE "Used to build FrSky released firmware" OFF)
+option(MODULE_R9M_FLEX_FW "Add R9M options for non certified firmwwares" OFF)
 
 # since we reset all default CMAKE compiler flags for firmware builds, provide an alternate way for user to specify additional flags.
 set(FIRMWARE_C_FLAGS "" CACHE STRING "Additional flags for firmware target c compiler (note: all CMAKE_C_FLAGS[_*] are ignored for firmware/bootloader).")
@@ -71,6 +70,9 @@ set(EEPROM_VARIANT  0)
 set(GVARS_VARIANT   1)
 set(FRSKY_VARIANT   2)
 set(3POS_VARIANT    4)
+set(MAVLINK_VARIANT 8)
+set(M2561_VARIANT   16384)
+set(M128_VARIANT    32768)
 
 set(FIRMWARE_DEPENDENCIES firmware_translations)
 
@@ -82,15 +84,45 @@ set(FATFS_SRC
 
 if(PCB STREQUAL X12S OR PCB STREQUAL X10)
   include(targets/horus/CMakeLists.txt)
-elseif(PCB STREQUAL X9E OR PCB STREQUAL X9D+ OR PCB STREQUAL X9D OR PCB STREQUAL X7 OR PCB STREQUAL X9LITE OR PCB STREQUAL XLITE OR PCB STREQUAL XLITES)
+elseif(PCB STREQUAL X9E OR PCB STREQUAL X9D+ OR PCB STREQUAL X9D OR PCB STREQUAL X7 OR PCB STREQUAL XLITE)
   include(targets/taranis/CMakeLists.txt)
 elseif(PCB STREQUAL SKY9X OR PCB STREQUAL 9XRPRO OR PCB STREQUAL AR9X)
   include(targets/sky9x/CMakeLists.txt)
+elseif(PCB STREQUAL 9X OR PCB STREQUAL 9XR OR PCB STREQUAL 9X128 OR PCB STREQUAL 9XR128)
+  include(targets/9x/CMakeLists.txt)
+elseif(PCB STREQUAL 9X2561)
+  set(ARCH AVR)
+  set(MCU atmega2561)
+  string(TOLOWER ${PCB} FLAVOUR)
+  set(EEPROM EEPROM_RLC)
+  set(SDCARD NO)
+  add_definitions(-DEEPROM_VARIANT=${M2561_VARIANT})
+  set(GUI_DIR 128x64)
+  set(TARGET_DIR 9x)
+  set(FIRMWARE_DEPENDENCIES ${FIRMWARE_DEPENDENCIES} 9x_bitmaps)
+  add_definitions(-DPCBSTD -DPCB${PCB} -DCPUM2561)
+  set(TARGET_SRC ${TARGET_SRC} board.cpp)
+  set(GUI_SRC
+    ${GUI_SRC}
+    model_inputs_mixes.cpp
+    radio_diagkeys.cpp
+    radio_diaganas.cpp)
+  if(SP22)
+    add_definitions(-DSP22)
+  endif()
+  if(PWM_BACKLIGHT)
+    add_definitions(-DPWM_BACKLIGHT)
+  endif()
+  set(FIRMWARE_TARGET_SRC ${FIRMWARE_TARGET_SRC} lcd_driver.cpp)
+elseif(PCB STREQUAL GRUVIN9X)
+  include(targets/gruvin9x/CMakeLists.txt)
+elseif(PCB STREQUAL MEGA2560)
+  include(targets/mega2560/CMakeLists.txt)
 else()
   message(FATAL_ERROR "Unknown PCB '${PCB}'")
 endif()
 
-if(NOT PCB STREQUAL 9XRPRO)
+if(NOT PCB STREQUAL 9XR AND NOT PCB STREQUAL 9XRPRO)
   option(DBLKEYS "Double Keys" ON)
   if(DBLKEYS)
     add_definitions(-DDBLKEYS)
@@ -111,6 +143,8 @@ endif()
 
 if(ARCH STREQUAL ARM)
   include(targets/common/arm/CMakeLists.txt)
+else()
+  include(targets/common/avr/CMakeLists.txt)
 endif()
 
 include_directories(targets/${TARGET_DIR} ${THIRDPARTY_DIR})
@@ -133,7 +167,10 @@ else()
   add_definitions(-DEEPROM -DEEPROM_RAW)
 endif()
 
-include(storage/conversions/CMakeLists.txt)
+if(ARCH STREQUAL ARM AND NOT PCB STREQUAL X12S AND NOT PCB STREQUAL X10 AND NOT PCB STREQUAL XLITE)
+  add_definitions(-DEEPROM_CONVERSIONS)
+  set(SRC ${SRC} storage/eeprom_conversions.cpp)
+endif()
 
 add_definitions(-DFLAVOUR="${FLAVOUR}")
 
@@ -147,6 +184,12 @@ include(gui/CMakeLists.txt)
 if(RAMBACKUP)
   add_definitions(-DRAMBACKUP)
   set(SRC ${SRC} storage/rambackup.cpp storage/rlc.cpp)
+endif()
+
+if(TEMPLATES)
+  add_definitions(-DTEMPLATES)
+  set(SRC ${SRC} templates.cpp)
+  set(GUI_SRC ${GUI_SRC} model_templates.cpp)
 endif()
 
 if(NOT LUA STREQUAL NO)
@@ -276,7 +319,9 @@ if(DANGEROUS_MODULE_FUNCTIONS)
   add_definitions(-DDANGEROUS_MODULE_FUNCTIONS)
 endif()
 
-if(NOT SPLASH STREQUAL OFF)
+if(SPLASH STREQUAL FRSKY)
+  add_definitions(-DSPLASH -DSPLASH_FRSKY)
+elseif(NOT SPLASH STREQUAL OFF)
   add_definitions(-DSPLASH)
 endif()
 
@@ -306,14 +351,10 @@ endif()
 
 if(NIGHTLY_BUILD_WARNING)
   add_definitions(-DNIGHTLY_BUILD_WARNING)
-endif()
+endif(NIGHTLY_BUILD_WARNING)
 
-if(R9M_PROTO_FLEX)
-  add_definitions(-DR9M_PROTO_FLEX)
-endif()
-
-if(FRSKY_RELEASE)
-  add_definitions(-DFRSKY_RELEASE)
+if(MODULE_R9M_FLEX_FW)
+    add_definitions(-DMODULE_R9M_FLEX_FW)
 endif()
 
 set(SRC
@@ -340,6 +381,12 @@ if(GUI)
   foreach(FILE ${GUI_SRC})
     set(SRC ${SRC} gui/${GUI_DIR}/${FILE})
   endforeach()
+  if(ARCH STREQUAL ARM)
+    set(SRC
+      ${SRC}
+      gui/gui_common_arm.cpp
+      )
+  endif()
 endif()
 
 foreach(FILE ${TARGET_SRC})
@@ -433,12 +480,10 @@ if(NOT MSVC)
 
     # these are in addition to CMAKE_CXX_FLAGS
     set(CMAKE_EXE_LINKER_FLAGS "-lm -T${RADIO_SRC_DIRECTORY}/${LINKER_SCRIPT} -Wl,-Map=firmware.map,--cref,--no-warn-mismatch,--gc-sections")
-
     if(SEMIHOSTING)
       add_definitions(-DSEMIHOSTING)
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --specs=rdimon.specs")
     endif()
-
     # Use newlib nano, which saves a few kilobytes.
     if(NOT NANO STREQUAL NO)
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --specs=nano.specs")
@@ -451,7 +496,8 @@ if(NOT MSVC)
       set(SRC ${SRC} bin_allocator.cpp)
     endif()
 
-    if(PCB STREQUAL XLITE OR PCB STREQUAL XLITES OR PCB STREQUAL X9D OR PCB STREQUAL X9D+ OR PCB STREQUAL X9E OR PCB STREQUAL X7 OR PCB STREQUAL X9LITE OR PCB STREQUAL X10 OR PCB STREQUAL X12S)
+
+    if(PCB STREQUAL XLITE OR PCB STREQUAL X9D OR PCB STREQUAL X9D+ OR PCB STREQUAL X9E OR PCB STREQUAL X7 OR PCB STREQUAL X10 OR PCB STREQUAL X12S)
       add_subdirectory(targets/common/arm/stm32/bootloader)
       include_directories(${CMAKE_CURRENT_BINARY_DIR}/targets/common/arm/stm32/bootloader)
       set(FIRMWARE_DEPENDENCIES ${FIRMWARE_DEPENDENCIES} bootloader)
@@ -465,8 +511,6 @@ if(NOT MSVC)
         message(FATAL_ERROR "Download failed: ${error_message}")
       endif()
     endif()
-
-    add_definitions(-DRTOS_COOS)
 
     add_executable(firmware ${SRC} ${FIRMWARE_HEADERS})
     link_libraries(firmware -lstdc++)
@@ -492,7 +536,73 @@ if(NOT MSVC)
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         )
     endif()
-  endif()  # ARM
+
+  else()  # AVR
+
+    set(CMAKE_C_COMPILER avr-gcc)
+    set(CMAKE_CXX_COMPILER avr-gcc)
+
+    set(COMMON_FLAGS "-mmcu=${MCU} -DF_CPU=16000000UL -O${OPT} -gdwarf-2 -fno-exceptions -flto -fwhole-program -fno-inline-small-functions -mstrict-X ${WARNING_FLAGS}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "-Wno-uninitialized")  # bogus "uninitialized" warnings from ld
+
+    include_directories(storage gui/${GUI_DIR})
+
+    set(ALLSRC ${PROJECT_BINARY_DIR}/allsrc.cpp)
+    if (BASH AND NOT WIN32)
+      add_custom_command(
+        OUTPUT ${ALLSRC}
+        COMMAND ${BASH} -kc 'rm -f ${ALLSRC}\; for f in ${SRC}\; do echo "\\# 1 \\\"$$f\\\"" >> ${ALLSRC}\; cat "$$f" >> ${ALLSRC}\; done'
+        WORKING_DIRECTORY ${RADIO_SRC_DIRECTORY}
+        DEPENDS ${SRC}
+        )
+    elseif(WIN32)
+      string(REPLACE "/" "\\" SRC_WIN "${SRC}")
+      string(REPLACE "/" "\\" ALLSRC_WIN "${ALLSRC}")
+      set(ALLSRC_BAT
+          "setlocal EnableDelayedExpansion"
+          "del \"${ALLSRC_WIN}\""
+          "for %%f in (${SRC_WIN}) do ("
+            "set p=\"%%f\""
+            "set p=!p:^\\=/! \necho \# 1 !p! >> \"${ALLSRC_WIN}\""
+            "type %%f >> \"${ALLSRC_WIN}\""
+          ")\n"
+        )
+      string(REPLACE ";" "\n" ALLSRC_BAT "${ALLSRC_BAT}")
+      file(WRITE "${ALLSRC}.bat" "${ALLSRC_BAT}")
+      add_custom_command(
+        OUTPUT ${ALLSRC}
+        COMMAND "${ALLSRC}.bat"
+        WORKING_DIRECTORY ${RADIO_SRC_DIRECTORY}
+        DEPENDS ${SRC}
+        )
+    else()
+      set(ALLSRC ${SRC})
+    endif()
+    add_executable(firmware ${ALLSRC})
+
+    add_dependencies(firmware ${FIRMWARE_DEPENDENCIES})
+
+    add_custom_command(
+      TARGET firmware POST_BUILD
+      COMMAND avr-objcopy -O ihex -R .eeprom firmware.elf firmware.hex
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      )
+
+    add_custom_target(firmware.lss
+      COMMAND avr-objdump -h -S firmware.elf > firmware.lss
+      DEPENDS firmware
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      )
+
+    add_custom_target(firmware-size
+      COMMAND avr-size --format=avr --mcu=${MCU} firmware.elf
+      DEPENDS firmware
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      )
+
+  endif()  # ARM or AVR
 
   if(CPU_FAMILY STREQUAL STM32)
     add_custom_target(flash
@@ -501,15 +611,15 @@ if(NOT MSVC)
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
 
-    add_custom_target(flash-jtag
+    add_custom_target(jtag-flash
       COMMAND st-flash --reset write firmware.bin 0x8000000
       DEPENDS firmware
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
       )
-
-    add_custom_target(flash-stlink
-      COMMAND ST-LINK_CLI -c SWD -P firmware.bin 0x8000000 -Rst -Q
-      DEPENDS firmware-size
+  else()
+    add_custom_target(flash
+      COMMAND avrdude -c usbasp -p ${AVRDUDE_MCU} -U flash:w:firmware.hex:i
+      DEPENDS firmware
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
       )
   endif()

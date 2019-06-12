@@ -37,10 +37,12 @@ void telemetryPortInit(uint32_t baudrate, uint8_t mode)
   NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&NVIC_InitStructure);
 
-  GPIO_PinAFConfig(TELEMETRY_GPIO, TELEMETRY_GPIO_PinSource_TX, TELEMETRY_GPIO_AF);
-  GPIO_PinAFConfig(TELEMETRY_GPIO, TELEMETRY_GPIO_PinSource_RX, TELEMETRY_GPIO_AF);
-
+  USART_InitTypeDef USART_InitStructure;
   GPIO_InitTypeDef GPIO_InitStructure;
+
+  GPIO_PinAFConfig(TELEMETRY_GPIO, TELEMETRY_GPIO_PinSource_RX, TELEMETRY_GPIO_AF);
+  GPIO_PinAFConfig(TELEMETRY_GPIO, TELEMETRY_GPIO_PinSource_TX, TELEMETRY_GPIO_AF);
+
   GPIO_InitStructure.GPIO_Pin = TELEMETRY_TX_GPIO_PIN | TELEMETRY_RX_GPIO_PIN;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
   GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
@@ -54,8 +56,6 @@ void telemetryPortInit(uint32_t baudrate, uint8_t mode)
   GPIO_Init(TELEMETRY_DIR_GPIO, &GPIO_InitStructure);
   TELEMETRY_DIR_INPUT();
 
-  USART_DeInit(TELEMETRY_USART);
-  USART_InitTypeDef USART_InitStructure;
   USART_InitStructure.USART_BaudRate = baudrate;
   if (mode & TELEMETRY_SERIAL_8E2) {
     USART_InitStructure.USART_WordLength = USART_WordLength_9b;
@@ -70,8 +70,8 @@ void telemetryPortInit(uint32_t baudrate, uint8_t mode)
   USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
   USART_InitStructure.USART_Mode = USART_Mode_Tx | USART_Mode_Rx;
   USART_Init(TELEMETRY_USART, &USART_InitStructure);
-  USART_Cmd(TELEMETRY_USART, ENABLE);
 
+  USART_Cmd(TELEMETRY_USART, ENABLE);
   USART_ITConfig(TELEMETRY_USART, USART_IT_RXNE, ENABLE);
   NVIC_SetPriority(TELEMETRY_USART_IRQn, 6);
   NVIC_EnableIRQ(TELEMETRY_USART_IRQn);
@@ -83,25 +83,13 @@ void telemetryPortSetDirectionOutput()
   TELEMETRY_USART->CR1 &= ~USART_CR1_RE; // turn off receiver
 }
 
-void sportWaitTransmissionComplete()
-{
-  while (!(TELEMETRY_USART->SR & USART_SR_TC));
-}
-
 void telemetryPortSetDirectionInput()
 {
-  sportWaitTransmissionComplete();
   TELEMETRY_DIR_INPUT();
   TELEMETRY_USART->CR1 |= USART_CR1_RE; // turn on receiver
 }
 
-void sportSendByte(uint8_t byte)
-{
-  while (!(TELEMETRY_USART->SR & USART_SR_TXE));
-  USART_SendData(TELEMETRY_USART, byte);
-}
-
-void sportSendBuffer(const uint8_t * buffer, uint32_t count)
+void sportSendBuffer(uint8_t * buffer, uint32_t count)
 {
   telemetryPortSetDirectionOutput();
 
@@ -139,8 +127,9 @@ extern "C" void TELEMETRY_DMA_TX_IRQHandler(void)
   if (DMA_GetITStatus(TELEMETRY_DMA_Stream_TX, TELEMETRY_DMA_TX_FLAG_TC)) {
     DMA_ClearITPendingBit(TELEMETRY_DMA_Stream_TX, TELEMETRY_DMA_TX_FLAG_TC);
     TELEMETRY_USART->CR1 |= USART_CR1_TCIE;
-    if (telemetryProtocol == PROTOCOL_TELEMETRY_FRSKY_SPORT) {
-      outputTelemetryBuffer.reset();
+    if (telemetryProtocol == PROTOCOL_FRSKY_SPORT) {
+      outputTelemetryBufferSize = 0;
+      outputTelemetryBufferTrigger = 0x7E;
     }
   }
 }
@@ -168,10 +157,10 @@ extern "C" void TELEMETRY_USART_IRQHandler(void)
     else {
       telemetryFifo.push(data);
 #if defined(LUA)
-      if (telemetryProtocol == PROTOCOL_TELEMETRY_FRSKY_SPORT) {
+      if (telemetryProtocol == PROTOCOL_FRSKY_SPORT) {
         static uint8_t prevdata;
-        if (prevdata == 0x7E && outputTelemetryBuffer.destination == TELEMETRY_ENDPOINT_SPORT && data == outputTelemetryBuffer.sport.physicalId) {
-          sportSendBuffer(outputTelemetryBuffer.data + 1, outputTelemetryBuffer.size - 1);
+        if (prevdata == 0x7E && outputTelemetryBufferSize > 0 && data == outputTelemetryBufferTrigger) {
+          sportSendBuffer(outputTelemetryBuffer, outputTelemetryBufferSize);
         }
         prevdata = data;
       }
@@ -184,10 +173,10 @@ extern "C" void TELEMETRY_USART_IRQHandler(void)
 // TODO we should have telemetry in an higher layer, functions above should move to a sport_driver.cpp
 uint8_t telemetryGetByte(uint8_t * byte)
 {
-#if defined(AUX_SERIAL)
-  if (telemetryProtocol == PROTOCOL_TELEMETRY_FRSKY_D_SECONDARY) {
-    if (auxSerialMode == UART_MODE_TELEMETRY)
-      return auxSerialRxFifo.pop(*byte);
+#if defined(SERIAL2)
+  if (telemetryProtocol == PROTOCOL_FRSKY_D_SECONDARY) {
+    if (serial2Mode == UART_MODE_TELEMETRY)
+      return serial2RxFifo.pop(*byte);
     else
       return false;
   }
@@ -197,9 +186,4 @@ uint8_t telemetryGetByte(uint8_t * byte)
 #else
   return telemetryFifo.pop(*byte);
 #endif
-}
-
-void telemetryClearFifo()
-{
-  telemetryFifo.clear();
 }

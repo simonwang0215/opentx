@@ -58,19 +58,10 @@ enum menuRadioHwItems {
 #if defined(USEHORUSBT)
   CASE_BLUETOOTH(ITEM_RADIO_HARDWARE_BLUETOOTH_NAME)
 #endif
-#if defined(AUX_SERIAL)
   ITEM_RADIO_HARDWARE_UART3_MODE,
-#endif
   ITEM_RADIO_HARDWARE_JITTER_FILTER,
-  ITEM_RADIO_HARDWARE_DEBUG,
   ITEM_RADIO_HARDWARE_MAX
 };
-
-#if defined(AUX_SERIAL)
-  #define AUX_SERIAL_ROWS 0,
-#else
-  #define AUX_SERIAL_ROWS
-#endif
 
 #define HW_SETTINGS_COLUMN 15*FW
 
@@ -99,7 +90,7 @@ enum menuRadioHwItems {
 
 void menuRadioHardware(event_t event)
 {
-  MENU(STR_HARDWARE, menuTabGeneral, MENU_RADIO_HARDWARE, ITEM_RADIO_HARDWARE_MAX, { 0, 0, 0, 0, 0, LABEL(Pots), POTS_ROWS, LABEL(Switches), SWITCHES_ROWS, BLUETOOTH_ROWS AUX_SERIAL_ROWS 1 });
+  MENU(STR_HARDWARE, menuTabGeneral, MENU_RADIO_HARDWARE, ITEM_RADIO_HARDWARE_MAX, { LABEL(Sticks), 0, 0, 0, 0, LABEL(Pots), POTS_ROWS, LABEL(Switches), SWITCHES_ROWS, BLUETOOTH_ROWS 0 });
 
   uint8_t sub = menuVerticalPosition;
 
@@ -114,10 +105,6 @@ void menuRadioHardware(event_t event)
     switch (k) {
       case ITEM_RADIO_HARDWARE_LABEL_STICKS:
         lcdDrawTextAlignedLeft(y, STR_STICKS);
-        lcdDrawText(HW_SETTINGS_COLUMN, y, BUTTON(TR_CALIBRATION), attr);
-        if (attr && event == EVT_KEY_FIRST(KEY_ENTER)) {
-          pushMenu(menuRadioCalibration);
-        }
         break;
       case ITEM_RADIO_HARDWARE_STICK1:
       case ITEM_RADIO_HARDWARE_STICK2:
@@ -233,14 +220,12 @@ void menuRadioHardware(event_t event)
 #endif
 #endif
 
-#if defined(AUX_SERIAL)
       case ITEM_RADIO_HARDWARE_UART3_MODE:
-        g_eeGeneral.auxSerialMode = editChoice(HW_SETTINGS_COLUMN, y, STR_UART3MODE, STR_UART3MODES, g_eeGeneral.auxSerialMode, 0, UART_MODE_MAX, attr, event);
+        g_eeGeneral.serial2Mode = editChoice(HW_SETTINGS_COLUMN, y, STR_UART3MODE, STR_UART3MODES, g_eeGeneral.serial2Mode, 0, UART_MODE_MAX, attr, event);
         if (attr && checkIncDec_Ret) {
-          auxSerialInit(g_eeGeneral.auxSerialMode, modelTelemetryProtocol());
+          serial2Init(g_eeGeneral.serial2Mode, modelTelemetryProtocol());
         }
         break;
-#endif
 
       case ITEM_RADIO_HARDWARE_JITTER_FILTER:
       {
@@ -248,19 +233,6 @@ void menuRadioHardware(event_t event)
         g_eeGeneral.jitterFilter = 1 - editCheckBox(b, HW_SETTINGS_COLUMN, y, STR_JITTER_FILTER, attr, event);
         break;
       }
-
-      case ITEM_RADIO_HARDWARE_DEBUG:
-        lcdDrawTextAlignedLeft(y, STR_DEBUG);
-        lcdDrawText(HW_SETTINGS_COLUMN
-          , y, STR_ANALOGS_BTN, menuHorizontalPosition == 0 ? attr : 0);
-        lcdDrawText(lcdLastRightPos + 2, y, STR_KEYS_BTN, menuHorizontalPosition == 1 ? attr : 0);
-        if (attr && event == EVT_KEY_FIRST(KEY_ENTER)) {
-          if (menuHorizontalPosition == 0)
-            pushMenu(menuRadioDiagAnalogs);
-          else
-            pushMenu(menuRadioDiagKeys);
-        }
-        break;
     }
   }
 }

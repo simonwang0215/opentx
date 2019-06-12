@@ -4,14 +4,12 @@ set(simulation_SRCS
   radiooutputswidget.cpp
   simulateduiwidget.cpp
   simulateduiwidget9X.cpp
-  simulateduiwidgetX9LITE.cpp
   simulateduiwidgetX7.cpp
   simulateduiwidgetX9.cpp
   simulateduiwidgetXLITE.cpp
   simulateduiwidgetX9E.cpp
   simulateduiwidgetX10.cpp
   simulateduiwidgetX12.cpp
-  simulateduiwidgetJumperT12.cpp
   simulatorinterface.cpp
   simulatormainwindow.cpp
   simulatorstartupdialog.cpp
@@ -26,14 +24,12 @@ set(simulation_UIS
   debugoutput.ui
   radiooutputswidget.ui
   simulateduiwidget9X.ui
-  simulateduiwidgetX9LITE.ui
   simulateduiwidgetX7.ui
   simulateduiwidgetX9.ui
   simulateduiwidgetXLITE.ui
   simulateduiwidgetX9E.ui
   simulateduiwidgetX10.ui
   simulateduiwidgetX12.ui
-  simulateduiwidgetJumperT12.ui
   simulatormainwindow.ui
   simulatorstartupdialog.ui
   simulatorwidget.ui

@@ -94,7 +94,7 @@ void readTextFile(int & lines_count)
   }
 }
 
-#if defined(ROTARY_ENCODER_NAVIGATION)
+#if defined(PCBX7) || defined(PCBX9E)
 #define EVT_KEY_NEXT_LINE              EVT_ROTARY_RIGHT
 #define EVT_KEY_PREVIOUS_LINE          EVT_ROTARY_LEFT
 #else
@@ -110,9 +110,9 @@ void readModelNotes()
   char *buf = strcat_modelname(&s_text_file[sizeof(MODELS_PATH)], g_eeGeneral.currModel);
   strcpy(buf, TEXT_EXT);
 
-  waitKeysReleased();
+  clearKeyEvents();
   event_t event = EVT_ENTRY;
-  while (event != EVT_KEY_BREAK(KEY_EXIT)) {
+  while (event != EVT_KEY_BREAK(KEY_EXIT) && pwrCheck() < e_power_off) {
     lcdRefreshWait();
     lcdClear();
     menuTextView(event);

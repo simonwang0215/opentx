@@ -2,7 +2,7 @@
  * Copyright (C) OpenTX
  *
  * Based on code named
- *   th9x - http://code.google.com/p/th9x
+ *   th9x - http://code.google.com/p/th9x 
  *   er9x - http://code.google.com/p/er9x
  *   gruvin9x - http://code.google.com/p/gruvin9x
  *
@@ -28,38 +28,23 @@ void displayKeyState(uint8_t x, uint8_t y, uint8_t key)
 
 void menuRadioDiagKeys(event_t event)
 {
-  SIMPLE_SUBMENU(STR_MENU_RADIO_SWITCHES, 1);
+  SIMPLE_MENU(STR_MENU_RADIO_SWITCHES, menuTabGeneral, MENU_RADIO_SWITCHES_TEST, 1);
 
-  lcdDrawText(14*FW, MENU_HEADER_HEIGHT + 1, STR_VTRIM);
+  lcdDrawText(14*FW, MENU_HEADER_HEIGHT+2*FH, STR_VTRIM);
 
   for (uint8_t i=0; i<9; i++) {
     coord_t y;
 
-    if (i < NUM_TRIMS_KEYS) {
-      y = MENU_HEADER_HEIGHT + 1 + FH + FH*(i/2);
+    if (i<8) {
+      y = MENU_HEADER_HEIGHT + FH*3 + FH*(i/2);
       if (i&1) lcdDraw1bitBitmap(14*FW, y, sticks, i/2, 0);
       displayKeyState(i&1? 20*FW : 18*FW, y, TRM_BASE+i);
     }
 
-    if (i <= KEY_MAX) {
-      y = MENU_HEADER_HEIGHT + 1 + FH*i;
+    if (i<6) {
+      y = i*FH+MENU_HEADER_HEIGHT+FH;
       lcdDrawTextAtIndex(0, y, STR_VKEYS, (5-i), 0);
-      displayKeyState(5*FW+2, y, i);
-    }
-
-    if (i < NUM_SWITCHES) {
-      if (SWITCH_EXISTS(i)) {
-        y = MENU_HEADER_HEIGHT + 1 + FH*i;
-        getvalue_t val = getValue(MIXSRC_FIRST_SWITCH+i);
-        getvalue_t sw = ((val < 0) ? 3*i+1 : ((val == 0) ? 3*i+2 : 3*i+3));
-        drawSwitch(8*FW+4, y, sw, 0);
-      }
+      displayKeyState(5*FW+2, y, KEY_MENU+(5-i));
     }
   }
-
-#if defined(ROTARY_ENCODER_NAVIGATION)
-  coord_t y = MENU_HEADER_HEIGHT + 1 + FH*KEY_COUNT;
-  lcdDrawText(0, y, STR_ROTARY_ENCODER);
-  lcdDrawNumber(5*FW+FWNUM+2, y, rotencValue, RIGHT);
-#endif
 }

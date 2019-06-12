@@ -56,7 +56,7 @@ void onCustomFunctionsFileSelectionMenu(const char * result)
       POPUP_WARNING(func==FUNC_PLAY_SCRIPT ? STR_NO_SCRIPTS_ON_SD : STR_NO_SOUNDS_ON_SD);
     }
   }
-  else if (result != STR_EXIT) {
+  else {
     // The user choosed a file in the list
     memcpy(cf->play.name, result, sizeof(cf->play.name));
     storageDirty(eeFlags);
@@ -128,7 +128,7 @@ void onAdjustGvarSourceLongEnterPress(const char * result)
     CFN_PARAM(cfn) = 0;
     storageDirty(EE_MODEL);
   }
-  else if (result != STR_EXIT) {
+  else {
     onSourceLongEnterPress(result);
   }
 }
@@ -359,7 +359,6 @@ bool menuSpecialFunctions(event_t event, CustomFunctionData * functions, CustomF
                 break;
               default: // FUNC_ADJUST_GVAR_INC
                 getMixSrcRange(CFN_GVAR_INDEX(cfn) + MIXSRC_FIRST_GVAR, val_min, val_max);
-                getGVarIncDecRange(val_min, val_max);
                 lcdDrawText(MODEL_SPECIAL_FUNC_3RD_COLUMN, y, (val_displayed < 0 ? "-= " : "+= "), attr);
                 drawGVarValue(lcdNextPos, y, CFN_GVAR_INDEX(cfn), abs(val_displayed), attr|LEFT);
                 break;

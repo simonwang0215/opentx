@@ -20,6 +20,7 @@
 
 #include "opentx.h"
 
+#if defined(CPUARM)
 void menuRadioSpecialFunctions(event_t event)
 {
 #if defined(PCBTARANIS)
@@ -39,3 +40,4 @@ void menuRadioSpecialFunctions(event_t event)
   }
 #endif
 }
+#endif

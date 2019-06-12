@@ -23,7 +23,7 @@
 
 #include <QtCore>
 
-constexpr int CPN_MAX_SENSORS = 60;
+#define CPN_MAX_SENSORS       32
 
 class SensorData {
   Q_DECLARE_TR_FUNCTIONS(SensorData)

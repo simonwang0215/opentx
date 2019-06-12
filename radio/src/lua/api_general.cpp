@@ -31,14 +31,8 @@
   #include "lua/lua_exports_x10.inc"
 #elif defined(PCBX9E)
   #include "lua/lua_exports_x9e.inc"
-#elif defined(RADIO_X7)
+#elif defined(PCBX7)
   #include "lua/lua_exports_x7.inc"
-#elif defined(RADIO_T12)
-  #include "lua/lua_exports_t12.inc"
-#elif defined(PCBX9LITE)
-  #include "lua/lua_exports_x9lite.inc"
-#elif defined(PCBXLITES)
-  #include "lua/lua_exports_xlites.inc"
 #elif defined(PCBXLITE)
   #include "lua/lua_exports_xlite.inc"
 #elif defined(PCBTARANIS)
@@ -307,10 +301,7 @@ bool luaFindFieldByName(const char * name, LuaField & field, unsigned int flags)
         continue;
       }
       if (index < luaMultipleFields[n].count) {
-        if(luaMultipleFields[n].id == MIXSRC_FIRST_TELEM)
-          field.id = luaMultipleFields[n].id + index*3;
-        else
-          field.id = luaMultipleFields[n].id + index;
+        field.id = luaMultipleFields[n].id + index;
         if (flags & FIND_FIELD_DESC) {
           snprintf(field.desc, sizeof(field.desc)-1, luaMultipleFields[n].desc, index+1);
           field.desc[sizeof(field.desc)-1] = '\0';
@@ -423,148 +414,26 @@ When called without parameters, it will only return the status of the output buf
 
 @status current Introduced in 2.2.0
 */
-
 static int luaSportTelemetryPush(lua_State * L)
 {
   if (lua_gettop(L) == 0) {
-    lua_pushboolean(L, outputTelemetryBuffer.isAvailable());
-    return 1;
+    lua_pushboolean(L, isSportOutputBufferAvailable());
   }
-
-  uint16_t dataId = luaL_checkunsigned(L, 3);
-
-  if (outputTelemetryBuffer.isAvailable()) {
-    for (uint8_t i=0; i<MAX_TELEMETRY_SENSORS; i++) {
-      TelemetrySensor & sensor = g_model.telemetrySensors[i];
-      if (sensor.id == dataId) {
-        if (sensor.frskyInstance.rxIndex == TELEMETRY_ENDPOINT_SPORT) {
-          SportTelemetryPacket packet;
-          packet.physicalId = getDataId(luaL_checkunsigned(L, 1));
-          packet.primId = luaL_checkunsigned(L, 2);
-          packet.dataId = dataId;
-          packet.value = luaL_checkunsigned(L, 4);
-          outputTelemetryBuffer.pushSportPacketWithBytestuffing(packet);
-        }
-        else {
-          outputTelemetryBuffer.sport.physicalId = getDataId(luaL_checkunsigned(L, 1));
-          outputTelemetryBuffer.sport.primId = luaL_checkunsigned(L, 2);
-          outputTelemetryBuffer.sport.dataId = dataId;
-          outputTelemetryBuffer.sport.value = luaL_checkunsigned(L, 4);
-        }
-        outputTelemetryBuffer.setDestination(sensor.frskyInstance.rxIndex);
-        lua_pushboolean(L, true);
-        return 1;
-      }
-    }
-
-    // sensor not found, we send the frame to the SPORT line
-    {
-      SportTelemetryPacket packet;
-      packet.physicalId = getDataId(luaL_checkunsigned(L, 1));
-      packet.primId = luaL_checkunsigned(L, 2);
-      packet.dataId = dataId;
-      packet.value = luaL_checkunsigned(L, 4);
-      outputTelemetryBuffer.pushSportPacketWithBytestuffing(packet);
-#if defined(PXX2)
-      uint8_t destination = (IS_INTERNAL_MODULE_ON() ? INTERNAL_MODULE : EXTERNAL_MODULE);
-
-      if (isModulePXX2(destination)) {
-        outputTelemetryBuffer.setDestination(destination << 2);
-      }
-      else {
-        outputTelemetryBuffer.setDestination(TELEMETRY_ENDPOINT_SPORT);
-      }
-#else
-      outputTelemetryBuffer.setDestination(TELEMETRY_ENDPOINT_SPORT);
-#endif
-      lua_pushboolean(L, true);
-      return 1;
-    }
-  }
-
-  lua_pushboolean(L, false);
-  return 1;
-}
-
-#if defined(PXX2)
-/*luadoc
-@function accessTelemetryPush()
-
-This functions allows for sending SPORT / ACCESS telemetry data toward the receiver,
-and more generally, to anything connected SPORT bus on the receiver or transmitter.
-
-When called without parameters, it will only return the status of the output buffer without sending anything.
-
-@param module    module index (0 = internal, 1 = external)
-
-@param rxUid     receiver index
-
-@param sensorId  physical sensor ID
-
-@param frameId   frame ID
-
-@param dataId    data ID
-
-@param value     value
-
-@retval boolean  data queued in output buffer or not.
-
-@status current Introduced in 2.3
-
-*/
-
-bool getDefaultAccessDestination(uint8_t & destination)
-{
-  for (uint8_t i=0; i<MAX_TELEMETRY_SENSORS; i++) {
-    TelemetrySensor & sensor = g_model.telemetrySensors[i];
-    if (sensor.type == TELEM_TYPE_CUSTOM) {
-      TelemetryItem sensorItem = telemetryItems[i];
-      if (sensorItem.isFresh()) {
-        destination = sensor.frskyInstance.rxIndex;
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-static int luaAccessTelemetryPush(lua_State * L)
-{
-  if (lua_gettop(L) == 0) {
-    lua_pushboolean(L, outputTelemetryBuffer.isAvailable());
-    return 1;
-  }
-
-  if (outputTelemetryBuffer.isAvailable()) {
-    int8_t module = luaL_checkinteger(L, 1);
-    uint8_t rxUid = luaL_checkunsigned(L, 2);
-    uint8_t destination;
-
-    if (module < 0) {
-      if (!getDefaultAccessDestination(destination)) {
-        lua_pushboolean(L, false);
-        return 1;
-      }
-    }
-    else {
-      destination = (module << 2) + rxUid;
-    }
-
-    outputTelemetryBuffer.sport.physicalId = getDataId(luaL_checkunsigned(L, 3));
-    outputTelemetryBuffer.sport.primId = luaL_checkunsigned(L, 4);
-    outputTelemetryBuffer.sport.dataId = luaL_checkunsigned(L, 5);
-    outputTelemetryBuffer.sport.value = luaL_checkunsigned(L, 6);
-    outputTelemetryBuffer.setDestination(destination);
+  else if (isSportOutputBufferAvailable()) {
+    SportTelemetryPacket packet;
+    packet.physicalId = getDataId(luaL_checkunsigned(L, 1));
+    packet.primId = luaL_checkunsigned(L, 2);
+    packet.dataId = luaL_checkunsigned(L, 3);
+    packet.value = luaL_checkunsigned(L, 4);
+    sportOutputPushPacket(&packet);
     lua_pushboolean(L, true);
-    return 1;
   }
-
-  lua_pushboolean(L, false);
+  else {
+    lua_pushboolean(L, false);
+  }
   return 1;
 }
-#endif
 
-#if defined(CROSSFIRE)
 /*luadoc
 @function crossfireTelemetryPop()
 
@@ -624,21 +493,21 @@ When called without parameters, it will only return the status of the output buf
 static int luaCrossfireTelemetryPush(lua_State * L)
 {
   if (lua_gettop(L) == 0) {
-    lua_pushboolean(L, outputTelemetryBuffer.isAvailable());
+    lua_pushboolean(L, isCrossfireOutputBufferAvailable());
   }
-  else if (outputTelemetryBuffer.isAvailable()) {
+  else if (isCrossfireOutputBufferAvailable()) {
     uint8_t command = luaL_checkunsigned(L, 1);
     luaL_checktype(L, 2, LUA_TTABLE);
     uint8_t length = luaL_len(L, 2);
-    outputTelemetryBuffer.pushByte(MODULE_ADDRESS);
-    outputTelemetryBuffer.pushByte(2 + length); // 1(COMMAND) + data length + 1(CRC)
-    outputTelemetryBuffer.pushByte(command); // COMMAND
+    telemetryOutputPushByte(MODULE_ADDRESS);
+    telemetryOutputPushByte(2 + length); // 1(COMMAND) + data length + 1(CRC)
+    telemetryOutputPushByte(command); // COMMAND
     for (int i=0; i<length; i++) {
       lua_rawgeti(L, 2, i+1);
-      outputTelemetryBuffer.pushByte(luaL_checkunsigned(L, -1));
+      telemetryOutputPushByte(luaL_checkunsigned(L, -1));
     }
-    outputTelemetryBuffer.pushByte(crc8(outputTelemetryBuffer.data+2, 1 + length));
-    outputTelemetryBuffer.setDestination(TELEMETRY_ENDPOINT_SPORT);
+    telemetryOutputPushByte(crc8(outputTelemetryBuffer+2, 1 + length));
+    telemetryOutputSetTrigger(command);
     lua_pushboolean(L, true);
   }
   else {
@@ -646,7 +515,6 @@ static int luaCrossfireTelemetryPush(lua_State * L)
   }
   return 1;
 }
-#endif
 
 /*luadoc
 @function getFieldInfo(name)
@@ -778,8 +646,8 @@ This is just a hardware pass/fail measure and does not represent the quality of 
 */
 static int luaGetRAS(lua_State * L)
 {
-  if (isRasValueValid()) {
-    lua_pushinteger(L, telemetryData.swrInternal.value);
+  if (IS_RAS_VALUE_VALID()) {
+    lua_pushinteger(L, telemetryData.swr.value);
   }
   else {
     lua_pushnil(L);
@@ -801,7 +669,7 @@ Return the internal GPS position or nil if no valid hardware found
  * 'speed' (number) internal GPSspeed in 0.1m/s
  * 'heading'  (number) internal GPS ground course estimation in degrees * 10
 
-@status current Introduced in 2.3.0
+@status current Introduced in 2.2.2
 */
 static int luaGetTxGPS(lua_State * L)
 {
@@ -1044,7 +912,7 @@ Returns (some of) the general radio settings
  * `gtimer` (number) radio global timer in seconds (does not include current session)
 
 @status current Introduced in 2.0.6, `imperial` added in TODO,
-`language` and `voice` added in 2.2.0, gtimer added in 2.3.0.
+`language` and `voice` added in 2.2.0, gtimer added in 2.2.2.
 
 */
 static int luaGetGeneralSettings(lua_State * L)
@@ -1057,6 +925,55 @@ static int luaGetGeneralSettings(lua_State * L)
   lua_pushtablestring(L, "language", TRANSLATIONS);
   lua_pushtablestring(L, "voice", currentLanguagePack->id);
   lua_pushtableinteger(L, "gtimer", g_eeGeneral.globalTimer);
+  return 1;
+}
+
+/*luadoc
+@function popupInput(title, event, input, min, max)
+
+Raises a pop-up on screen that allows uses input
+
+@param title (string) text to display
+
+@param event (number) the event variable that is passed in from the
+Run function (key pressed)
+
+@param input (number) value that can be adjusted by the +/­- keys
+
+@param min  (number) min value that input can reach (by pressing the -­ key)
+
+@param max  (number) max value that input can reach
+
+@retval number result of the input adjustment
+
+@retval "OK" user pushed ENT key
+
+@retval "CANCEL" user pushed EXIT key
+
+@notice Use only from stand-alone and telemetry scripts.
+
+@status current Introduced in 2.0.0
+*/
+static int luaPopupInput(lua_State * L)
+{
+  event_t event = luaL_checkinteger(L, 2);
+  warningInputValue = luaL_checkinteger(L, 3);
+  warningInputValueMin = luaL_checkinteger(L, 4);
+  warningInputValueMax = luaL_checkinteger(L, 5);
+  warningText = luaL_checkstring(L, 1);
+  warningType = WARNING_TYPE_INPUT;
+  runPopupWarning(event);
+  if (warningResult) {
+    warningResult = 0;
+    lua_pushstring(L, "OK");
+  }
+  else if (!warningText) {
+    lua_pushstring(L, "CANCEL");
+  }
+  else {
+    lua_pushinteger(L, warningInputValue);
+  }
+  warningText = NULL;
   return 1;
 }
 
@@ -1183,8 +1100,7 @@ static int luaSetTelemetryValue(lua_State * L)
   const char* name = luaL_optstring(L, 7, NULL);
   if (name != NULL && strlen(name) > 0) {
     str2zchar(zname, name, 4);
-  }
-  else {
+  } else {
     zname[0] = hex2zchar((id & 0xf000) >> 12);
     zname[1] = hex2zchar((id & 0x0f00) >> 8);
     zname[2] = hex2zchar((id & 0x00f0) >> 4);
@@ -1199,8 +1115,7 @@ static int luaSetTelemetryValue(lua_State * L)
       telemetrySensor.instance = instance;
       telemetrySensor.init(zname, unit, prec);
       lua_pushboolean(L, true);
-    }
-    else {
+    } else {
       lua_pushboolean(L, false);
     }
     return 1;
@@ -1356,50 +1271,12 @@ static int luaGetUsage(lua_State * L)
 
 Resets the radio global timer to 0.
 
-@status current Introduced in 2.3.0
+@status current Introduced in 2.2.2
 */
 static int luaResetGlobalTimer(lua_State * L)
 {
   g_eeGeneral.globalTimer = 0;
   storageDirty(EE_GENERAL);
-  return 0;
-}
-
-/*luadoc
-@function serialWrite(str)
-@param str (string) String to be written to the serial port.
-
-Writes a string to the serial port. The string is allowed to contain any character, including 0.
-
-@status current Introducted in TODO
-*/
-static int luaSerialWrite(lua_State * L)
-{
-  const char * str = luaL_checkstring(L, 1);
-  size_t len = lua_rawlen(L, 1);
-
-  if (!str || len < 1)
-    return 0;
-
-#if !defined(SIMU)
-  #if defined(USB_SERIAL)
-  if (getSelectedUsbMode() == USB_SERIAL_MODE) {
-    size_t wr_len = len;
-    const char* p = str;
-    while(wr_len--) usbSerialPutc(*p++);
-  }
-  #endif
-  #if defined(AUX_SERIAL)
-  if (auxSerialMode == UART_MODE_LUA) {
-    size_t wr_len = len;
-    const char* p = str;
-    while(wr_len--) auxSerialPutc(*p++);
-  }
-  #endif
-#else
-  debugPrintf("luaSerialWrite: %.*s",len,str);
-#endif
-
   return 0;
 }
 
@@ -1421,7 +1298,7 @@ const luaL_Reg opentxLib[] = {
   { "playDuration", luaPlayDuration },
   { "playTone", luaPlayTone },
   { "playHaptic", luaPlayHaptic },
-  // { "popupInput", luaPopupInput },
+  { "popupInput", luaPopupInput },
   { "popupWarning", luaPopupWarning },
   { "popupConfirmation", luaPopupConfirmation },
   { "defaultStick", luaDefaultStick },
@@ -1434,9 +1311,6 @@ const luaL_Reg opentxLib[] = {
 #if LCD_DEPTH > 1 && !defined(COLORLCD)
   { "GREY", luaGrey },
 #endif
-#if defined(PXX2)
-  { "accessTelemetryPush", luaAccessTelemetryPush },
-#endif
   { "sportTelemetryPop", luaSportTelemetryPop },
   { "sportTelemetryPush", luaSportTelemetryPush },
   { "setTelemetryValue", luaSetTelemetryValue },
@@ -1444,8 +1318,7 @@ const luaL_Reg opentxLib[] = {
   { "crossfireTelemetryPop", luaCrossfireTelemetryPop },
   { "crossfireTelemetryPush", luaCrossfireTelemetryPush },
 #endif
-  { "serialWrite", luaSerialWrite },
-  { nullptr, nullptr }  /* sentinel */
+  { NULL, NULL }  /* sentinel */
 };
 
 const luaR_value_entry opentxConstants[] = {
@@ -1459,7 +1332,6 @@ const luaR_value_entry opentxConstants[] = {
   { "BLINK", BLINK },
   { "RIGHT", RIGHT },
   { "LEFT", LEFT },
-  { "CENTER", CENTERED },
   { "PREC1", PREC1 },
   { "PREC2", PREC2 },
   { "VALUE", INPUT_TYPE_VALUE },
@@ -1474,17 +1346,16 @@ const luaR_value_entry opentxConstants[] = {
   { "MIXSRC_SB", MIXSRC_SB },
   { "MIXSRC_SC", MIXSRC_SC },
   { "MIXSRC_SD", MIXSRC_SD },
-#if !defined(PCBX7) && !defined(PCBXLITE) && !defined(PCBX9LITE)
+#if !defined(PCBX7) && !defined(PCBXLITE)
   { "MIXSRC_SE", MIXSRC_SE },
   { "MIXSRC_SG", MIXSRC_SG },
 #endif
-#if !defined(PCBXLITE) && !defined(PCBX9LITE)
+#if !defined(PCBXLITE)
   { "MIXSRC_SF", MIXSRC_SF },
   { "MIXSRC_SH", MIXSRC_SH },
 #endif
   { "MIXSRC_CH1", MIXSRC_CH1 },
   { "SWSRC_LAST", SWSRC_LAST_LOGICAL_SWITCH },
-  { "MAX_SENSORS", MAX_TELEMETRY_SENSORS },
 #if defined(COLORLCD)
   { "SHADOWED", SHADOWED },
   { "COLOR", ZoneOption::Color },
@@ -1558,26 +1429,6 @@ const luaR_value_entry opentxConstants[] = {
   { "FORCE", FORCE },
   { "ERASE", ERASE },
   { "ROUND", ROUND },
-#elif defined(RADIO_T12)
-  { "EVT_DOWN_FIRST", EVT_KEY_FIRST(KEY_DOWN) },
-  { "EVT_UP_FIRST", EVT_KEY_FIRST(KEY_UP) },
-  { "EVT_LEFT_FIRST", EVT_KEY_FIRST(KEY_LEFT) },
-  { "EVT_RIGHT_FIRST", EVT_KEY_FIRST(KEY_RIGHT) },
-  { "EVT_DOWN_BREAK", EVT_KEY_BREAK(KEY_DOWN) },
-  { "EVT_UP_BREAK", EVT_KEY_BREAK(KEY_UP) },
-  { "EVT_LEFT_BREAK", EVT_KEY_BREAK(KEY_LEFT) },
-  { "EVT_RIGHT_BREAK", EVT_KEY_BREAK(KEY_RIGHT) },
-  { "EVT_DOWN_LONG", EVT_KEY_LONG(KEY_DOWN) },
-  { "EVT_UP_LONG", EVT_KEY_LONG(KEY_UP) },
-  { "EVT_LEFT_LONG", EVT_KEY_LONG(KEY_LEFT) },
-  { "EVT_RIGHT_LONG", EVT_KEY_LONG(KEY_RIGHT) },
-  { "EVT_DOWN_REPT", EVT_KEY_REPT(KEY_DOWN) },
-  { "EVT_UP_REPT", EVT_KEY_REPT(KEY_UP) },
-  { "EVT_LEFT_REPT", EVT_KEY_REPT(KEY_LEFT) },
-  { "EVT_RIGHT_REPT", EVT_KEY_REPT(KEY_RIGHT) },
-  { "FORCE", FORCE },
-  { "ERASE", ERASE },
-  { "ROUND", ROUND },
 #elif defined(PCBTARANIS)
   { "EVT_MENU_BREAK", EVT_KEY_BREAK(KEY_MENU) },
   { "EVT_MENU_LONG", EVT_KEY_LONG(KEY_MENU) },
@@ -1640,7 +1491,6 @@ const luaR_value_entry opentxConstants[] = {
   {"UNIT_RADIANS", UNIT_RADIANS },
   {"UNIT_MILLILITERS", UNIT_MILLILITERS },
   {"UNIT_FLOZ", UNIT_FLOZ },
-  {"UNIT_MILLILITERS_PER_MINUTE", UNIT_MILLILITERS_PER_MINUTE },
   {"UNIT_HOURS", UNIT_HOURS },
   {"UNIT_MINUTES", UNIT_MINUTES },
   {"UNIT_SECONDS", UNIT_SECONDS },
@@ -1650,5 +1500,5 @@ const luaR_value_entry opentxConstants[] = {
   {"UNIT_BITFIELD", UNIT_BITFIELD},
   {"UNIT_TEXT", UNIT_TEXT},
 #endif
-  { nullptr, 0 }  /* sentinel */
+  { NULL, 0 }  /* sentinel */
 };

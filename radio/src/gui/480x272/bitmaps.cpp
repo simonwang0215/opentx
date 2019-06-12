@@ -140,23 +140,23 @@ const uint8_t LBM_SHUTDOWN_CIRCLE[] = {
 #include "mask_shutdown_circle.lbm"
 };
 
-const uint8_t LBM_SLIDER_BAR_LEFT[] __ALIGNED(4) = {
+const uint8_t LBM_SLIDER_BAR_LEFT[] __ALIGNED = {
 #include "bar_left.lbm"
 };
 
-const uint8_t LBM_SLIDER_BAR_RIGHT[] __ALIGNED(4) = {
+const uint8_t LBM_SLIDER_BAR_RIGHT[] __ALIGNED = {
 #include "bar_right.lbm"
 };
 
-const uint8_t LBM_SLIDER_POINT_OUT[] __ALIGNED(4) = {
+const uint8_t LBM_SLIDER_POINT_OUT[] __ALIGNED = {
 #include "point_out.lbm"
 };
 
-const uint8_t LBM_SLIDER_POINT_MID[] __ALIGNED(4) = {
+const uint8_t LBM_SLIDER_POINT_MID[] __ALIGNED = {
 #include "point_mid.lbm"
 };
 
-const uint8_t LBM_SLIDER_POINT_IN[] __ALIGNED(4) = {
+const uint8_t LBM_SLIDER_POINT_IN[] __ALIGNED = {
 #include "point_in.lbm"
 };
 

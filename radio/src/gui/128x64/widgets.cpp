@@ -55,6 +55,7 @@ void drawScreenIndex(uint8_t index, uint8_t count, uint8_t attr)
   lcdDrawNumber(x, 0, index+1, RIGHT | attr);
 }
 
+#if !defined(CPUM64)
 void drawVerticalScrollbar(coord_t x, coord_t y, coord_t h, uint16_t offset, uint16_t count, uint8_t visible)
 {
   lcdDrawVerticalLine(x, y, h, DOTTED);
@@ -64,21 +65,22 @@ void drawVerticalScrollbar(coord_t x, coord_t y, coord_t h, uint16_t offset, uin
     yhgt = h - yofs;
   lcdDrawVerticalLine(x, y + yofs, yhgt, SOLID, FORCE);
 }
+#endif
 
-void title(const char * s)
+void title(const pm_char * s)
 {
   lcdDrawText(0, 0, s, INVERS);
 }
 
-choice_t editChoice(coord_t x, coord_t y, const char * label, const char *values, choice_t value, choice_t min, choice_t max, LcdFlags attr, event_t event)
+choice_t editChoice(coord_t x, coord_t y, const pm_char * label, const pm_char *values, choice_t value, choice_t min, choice_t max, LcdFlags attr, event_t event)
 {
   drawFieldLabel(x, y, label);
   if (values) lcdDrawTextAtIndex(x, y, values, value-min, attr);
-  if (attr & (~RIGHT)) value = checkIncDec(event, value, min, max, (isModelMenuDisplayed()) ? EE_MODEL : EE_GENERAL);
+  if (attr & (~RIGHT)) value = checkIncDec(event, value, min, max, (menuVerticalPositions[0] == 0) ? EE_MODEL : EE_GENERAL);
   return value;
 }
 
-uint8_t editCheckBox(uint8_t value, coord_t x, coord_t y, const char *label, LcdFlags attr, event_t event )
+uint8_t editCheckBox(uint8_t value, coord_t x, coord_t y, const pm_char *label, LcdFlags attr, event_t event )
 {
 #if defined(GRAPHICS)
   drawCheckBox(x, y, value, attr);
@@ -88,7 +90,7 @@ uint8_t editCheckBox(uint8_t value, coord_t x, coord_t y, const char *label, Lcd
 #endif
 }
 
-swsrc_t editSwitch(coord_t x, coord_t y, swsrc_t value, LcdFlags attr, event_t event)
+int8_t editSwitch(coord_t x, coord_t y, int8_t value, LcdFlags attr, event_t event)
 {
   drawFieldLabel(x, y, STR_SWITCH);
   drawSwitch(x,  y, value, attr);
@@ -96,21 +98,24 @@ swsrc_t editSwitch(coord_t x, coord_t y, swsrc_t value, LcdFlags attr, event_t e
   return value;
 }
 
-void drawSlider(coord_t x, coord_t y, uint8_t width, uint8_t value, uint8_t max, uint8_t attr)
-{
-  lcdDrawChar(x + (value * (width - FWNUM)) / max, y, '$');
-  lcdDrawSolidHorizontalLine(x, y + 3, width, FORCE);
-  if (attr && (!(attr & BLINK) || !BLINK_ON_PHASE)) {
-    lcdDrawSolidFilledRect(x, y, width, FH - 1);
-  }
-}
-
+#if !defined(CPUM64)
 void drawSlider(coord_t x, coord_t y, uint8_t value, uint8_t max, uint8_t attr)
 {
-  drawSlider(x, y, 5*FW - 1, value, max, attr);
+  lcdDrawChar(x+(value*4*FW)/max, y, '$');
+  lcdDrawSolidHorizontalLine(x, y+3, 5*FW-1, FORCE);
+  if (attr && (!(attr & BLINK) || !BLINK_ON_PHASE)) lcdDrawSolidFilledRect(x, y, 5*FW-1, FH-1);
 }
+#elif defined(GRAPHICS)
+void display5posSlider(coord_t x, coord_t y, uint8_t value, uint8_t attr)
+{
+  lcdDrawChar(x+2*FW+(value*FW), y, '$');
+  lcdDrawSolidHorizontalLine(x, y+3, 5*FW-1, SOLID);
+  if (attr && (!(attr & BLINK) || !BLINK_ON_PHASE)) lcdDrawSolidFilledRect(x, y, 5*FW-1, FH-1);
+}
+#endif
 
-#if defined(GVARS)
+
+#if defined(GVARS) && defined(CPUARM)
 void drawGVarValue(coord_t x, coord_t y, uint8_t gvar, gvar_t value, LcdFlags flags)
 {
   uint8_t prec = g_model.gvars[gvar].prec;
@@ -230,13 +235,30 @@ void drawStatusLine()
     }
 
     lcdDrawFilledRect(0, LCD_H-statusLineHeight, LCD_W, FH, SOLID, ERASE);
-    lcdDrawText(5, LCD_H+1-statusLineHeight, statusLineMsg);
+    lcdDrawText(5, LCD_H+1-statusLineHeight, statusLineMsg, BSS);
     lcdDrawFilledRect(0, LCD_H-statusLineHeight, LCD_W, FH, SOLID);
   }
 }
 #endif
 
-const unsigned char SLEEP_BITMAP[]  = {
+void drawProgressBar(const char * label, int num, int den)
+{
+  lcdClear();
+  if (label) {
+    lcdDrawTextAlignedLeft(4*FH, label);
+  }
+  lcdDrawRect(4, 6*FH+4, LCD_W-8, 7);
+  if (num > 0 && den > 0) {
+    int width = ((LCD_W-12)*num)/den;
+    lcdDrawSolidHorizontalLine(6, 6*FH+6, width, FORCE);
+    lcdDrawSolidHorizontalLine(6, 6*FH+7, width, FORCE);
+    lcdDrawSolidHorizontalLine(6, 6*FH+8, width, FORCE);
+  }
+  lcdRefresh();
+}
+
+#if defined(CPUARM) || defined(CPUM2560)
+const pm_uchar SLEEP_BITMAP[] PROGMEM = {
 #include "sleep.lbm"
 };
 
@@ -249,3 +271,4 @@ void drawSleepBitmap()
   lcdDraw1bitBitmap((LCD_W-SLEEP_BITMAP_WIDTH)/2, (LCD_H-SLEEP_BITMAP_HEIGHT)/2, SLEEP_BITMAP, 0);
   lcdRefresh();
 }
+#endif

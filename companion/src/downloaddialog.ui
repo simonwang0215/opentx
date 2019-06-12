@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>DownloadDialog</class>
- <widget class="QDialog" name="DownloadDialog">
+ <class>downloadDialog</class>
+ <widget class="QDialog" name="downloadDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -53,7 +53,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>DownloadDialog</receiver>
+   <receiver>downloadDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -69,7 +69,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>DownloadDialog</receiver>
+   <receiver>downloadDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

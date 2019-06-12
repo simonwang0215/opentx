@@ -21,26 +21,18 @@
 #include "progresswidget.h"
 #include "ui_progresswidget.h"
 #include "appdata.h"
-
-#include <QApplication>
 #include <QDebug>
 #include <QTimer>
-#include <QThread>
 #include <QScrollBar>
 
-ProgressWidget::ProgressWidget(QWidget *parent) :
-  QWidget(parent),
-  ui(new Ui::ProgressWidget),
-  m_forceOpen(false),
-  m_hasDetails(false)
+ProgressWidget::ProgressWidget(QWidget *parent):
+QWidget(parent),
+ui(new Ui::ProgressWidget)
 {
   ui->setupUi(this);
   ui->info->hide();
   ui->checkBox->hide();
   ui->textEdit->hide();
-
-  ui->checkBox->setChecked(g.outputDisplayDetails());
-  connect(ui->checkBox, &QCheckBox::toggled, this, &ProgressWidget::onShowDetailsToggled);
 
   QFont newFont(ui->textEdit->font());
   newFont.setFamily("Courier");
@@ -51,7 +43,6 @@ ProgressWidget::ProgressWidget(QWidget *parent) :
   newFont.setPointSize(9);
 #endif
   ui->textEdit->setFont(newFont);
-
 }
 
 ProgressWidget::~ProgressWidget()
@@ -64,16 +55,10 @@ void ProgressWidget::stop()
   emit stopped();
 }
 
-void ProgressWidget::clearDetails() const
-{
-  ui->textEdit->clear();
-}
-
 void ProgressWidget::forceOpen()
 {
-  m_forceOpen = true;
   ui->checkBox->hide();
-  toggleDetails();
+  ui->textEdit->show();
 }
 
 void ProgressWidget::setInfo(const QString &text)
@@ -99,11 +84,8 @@ void ProgressWidget::setValue(int value)
 
 void ProgressWidget::addText(const QString &text, const bool richText)
 {
-  if (!m_hasDetails) {
-    m_hasDetails = true;
-    if (!m_forceOpen)
-      toggleDetails();
-  }
+  ui->checkBox->setVisible(true);
+  ui->checkBox->setChecked(g.outputDisplayDetails());
 
   QTextCursor cursor(ui->textEdit->textCursor());
 
@@ -126,7 +108,7 @@ void ProgressWidget::addHtml(const QString & text)
   addText(text, true);
 }
 
-void ProgressWidget::addMessage(const QString & text, const int & type, bool richText)
+void ProgressWidget::addMessage(const QString & text, const int & type)
 {
   QString color;
   switch (type) {
@@ -147,47 +129,23 @@ void ProgressWidget::addMessage(const QString & text, const int & type, bool ric
       break;
   }
   if (color.isEmpty()) {
-    if (richText)
+    if (text.contains(QRegExp("<[^>]+>")))  // detect html (rouhgly)
       addHtml(text % "<br>");
     else
-      addText(text % "\n");
+      addText(text % "\n", false);
   }
-  else {
+  else
     addHtml(QString("<font color=%1>").arg(color) % text % "</font><br>");
-  }
 }
 
-QString ProgressWidget::getText() const
+QString ProgressWidget::getText()
 {
   return ui->textEdit->toPlainText();
 }
 
 bool ProgressWidget::isEmpty() const
 {
-  return getText().isEmpty();
-}
-
-bool ProgressWidget::detailsVisible() const
-{
-  return ui->textEdit->isVisible();
-}
-
-void ProgressWidget::onShowDetailsToggled(bool checked)
-{
-  g.outputDisplayDetails(checked);
-  toggleDetails();
-}
-
-void ProgressWidget::toggleDetails()
-{
-  bool showDetails = m_forceOpen || (m_hasDetails && g.outputDisplayDetails());
-  if (!m_forceOpen)
-    ui->checkBox->show();
-  if ((!showDetails && ui->textEdit->isVisible()) || (showDetails && !ui->textEdit->isVisible())) {
-    ui->textEdit->setMinimumHeight(showDetails ? 300 : 0);
-    ui->textEdit->setVisible(showDetails);
-    emit detailsToggled();
-  }
+  return ui->textEdit->toPlainText().isEmpty();
 }
 
 void ProgressWidget::setProgressColor(const QColor &color)
@@ -202,7 +160,21 @@ void ProgressWidget::addSeparator()
   addText("\n" HLINE_SEPARATOR "\n");
 }
 
+void ProgressWidget::on_checkBox_toggled(bool checked)
+{
+  g.outputDisplayDetails(checked);
+  ui->textEdit->setVisible(checked);
+  QTimer::singleShot(0, this, SLOT(shrink()));
+}
+
 void ProgressWidget::lock(bool lock)
 {
   emit locked(lock);
 }
+
+void ProgressWidget::shrink()
+{
+  emit detailsToggled();
+}
+
+

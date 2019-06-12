@@ -24,6 +24,12 @@
 #include "helpers.h"
 #include "appdata.h"
 
+const char * const OPENTX_SDCARD_DOWNLOAD_URL[] = {
+  "https://downloads.open-tx.org/2.2/release/sdcard/",
+  "https://downloads.open-tx.org/2.2/rc/sdcard/",
+  "https://downloads.open-tx.org/2.2/nightlies/sdcard/"
+};
+
 FirmwarePreferencesDialog::FirmwarePreferencesDialog(QWidget * parent) :
   QDialog(parent),
   ui(new Ui::FirmwarePreferencesDialog)
@@ -31,9 +37,6 @@ FirmwarePreferencesDialog::FirmwarePreferencesDialog(QWidget * parent) :
   ui->setupUi(this);
   setWindowIcon(CompanionIcon("fwpreferences.png"));
   initSettings();
-  MainWindow * mw = qobject_cast<MainWindow *>(this->parent());
-  if (mw)
-    connect(mw, &MainWindow::firmwareDownloadCompleted, this, &FirmwarePreferencesDialog::initSettings);
 }
 
 FirmwarePreferencesDialog::~FirmwarePreferencesDialog()
@@ -43,35 +46,34 @@ FirmwarePreferencesDialog::~FirmwarePreferencesDialog()
 
 void FirmwarePreferencesDialog::initSettings()
 {
-  ui->fwTypeLbl->setText(g.currentProfile().fwType());
-  int version = g.fwRev.get(g.currentProfile().fwType());
-  if (version > 0)
+  ui->fwTypeLbl->setText(g.profile[g.id()].fwType());
+  int version = g.fwRev.get(g.profile[g.id()].fwType());
+  if (version > 0) {
     ui->lastRevisionLbl->setText(index2version(version));
-  else
-    ui->lastRevisionLbl->setText(tr("Unknown"));
+  }
 }
 
 void FirmwarePreferencesDialog::on_checkFWUpdates_clicked()
 {
   MainWindow * mw = qobject_cast<MainWindow *>(this->parent());
-  if (mw)
-    mw->checkForFirmwareUpdate();
+  mw->checkForFirmwareUpdate();
+  initSettings();
 }
 
 void FirmwarePreferencesDialog::on_fw_dnld_clicked()
 {
   MainWindow * mw = qobject_cast<MainWindow *>(this->parent());
-  if (mw)
-    mw->dowloadLastFirmwareUpdate();
+  mw->dowloadLastFirmwareUpdate();
+  initSettings();
 }
 
 void FirmwarePreferencesDialog::on_sd_dnld_clicked()
 {
-  QString url = g.openTxCurrentDownloadBranchUrl() % QStringLiteral("sdcard/");
+  QString url = OPENTX_SDCARD_DOWNLOAD_URL[g.boundedOpenTxBranch()];
   QString fwType = g.profile[g.id()].fwType();
   QStringList list = fwType.split("-");
   QString firmware = QString("%1-%2").arg(list[0]).arg(list[1]);
-  if (g.boundedOpenTxBranch() != AppData::BRANCH_NIGHTLY_UNSTABLE) {
+  if (g.boundedOpenTxBranch() != BRANCH_NIGHTLY_UNSTABLE) {
     url.append(QString("%1/").arg(firmware));
   }
   QDesktopServices::openUrl(url);

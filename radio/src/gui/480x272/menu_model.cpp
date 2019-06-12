@@ -27,7 +27,7 @@ const MenuHandlerFunc menuTabModel[] = {
   menuModelExposAll,
   menuModelMixAll,
   menuModelLimits,
-  menuModelCurvesAll,
+  CASE_CURVES(menuModelCurvesAll)
 #if defined(GVARS) && defined(FLIGHT_MODES)
   CASE_GVARS(menuModelGVars)
 #endif
@@ -37,6 +37,7 @@ const MenuHandlerFunc menuTabModel[] = {
   menuModelCustomScripts,
 #endif
   CASE_FRSKY(menuModelTelemetryFrsky)
+  CASE_MAVLINK(menuModelTelemetryMavlink)
 };
 
 void editCurveRef(coord_t x, coord_t y, CurveRef & curve, event_t event, LcdFlags attr);
@@ -82,7 +83,7 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
     if (s_editMode > 0) {
       int8_t c = name[editNameCursorPos];
       if (!(flags & ZCHAR)) {
-        c = char2zchar(c);
+        c = char2idx(c);
       }
       int8_t v = c;
 
@@ -132,15 +133,15 @@ void editName(coord_t x, coord_t y, char * name, uint8_t size, event_t event, ui
       if (c != v) {
         if (!(flags & ZCHAR)) {
           if (v != '\0' || name[editNameCursorPos+1] != '\0')
-            v = zchar2char(v);
+            v = idx2char(v);
         }
         name[editNameCursorPos] = v;
-        storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
+        storageDirty(menuVerticalPositions[0] == 0 ? EE_MODEL : EE_GENERAL);
       }
 
       lcdDrawSizedText(x, y, name, size, flags);
       coord_t left = (editNameCursorPos == 0 ? 0 : getTextWidth(name, editNameCursorPos, flags));
-      char s[] = { (flags & ZCHAR) ? zchar2char(name[editNameCursorPos]) : name[editNameCursorPos], '\0' };
+      char s[] = { (flags & ZCHAR) ? idx2char(name[editNameCursorPos]) : name[editNameCursorPos], '\0' };
       lcdDrawSolidFilledRect(x+left-1, y, getTextWidth(s, 1)+1, INVERT_LINE_HEIGHT, TEXT_INVERTED_BGCOLOR);
       lcdDrawText(x+left, y, s, TEXT_INVERTED_COLOR);
     }

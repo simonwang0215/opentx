@@ -102,7 +102,7 @@ void lcdPutFontPattern(coord_t x, coord_t y, const uint8_t * font, const uint16_
 void lcdDrawChar(coord_t x, coord_t y, char c, LcdFlags flags)
 {
   uint32_t fontindex = FONTINDEX(flags);
-  const unsigned char * font = fontsTable[fontindex];
+  const pm_uchar * font = fontsTable[fontindex];
   const uint16_t * fontspecs = fontspecsTable[fontindex];
   lcdPutFontPattern(x, y, font, fontspecs, getMappedChar(c), flags);
 }
@@ -130,7 +130,7 @@ int getTextWidth(const char * s, int len, LcdFlags flags)
   for (int i=0; len==0 || i<len; ++i) {
 
 #if !defined(BOOT)
-    char c = (flags & ZCHAR) ? zchar2char(*s) : *s;
+    char c = (flags & ZCHAR) ? idx2char(*s) : *s;
 #else
     char c = *s;
 #endif
@@ -142,10 +142,10 @@ int getTextWidth(const char * s, int len, LcdFlags flags)
   return result;
 }
 
-void lcdDrawTextAtIndex(coord_t x, coord_t y, const char * s, uint8_t idx, LcdFlags flags)
+void lcdDrawTextAtIndex(coord_t x, coord_t y, const pm_char * s, uint8_t idx, LcdFlags flags)
 {
   uint8_t length;
-  length = *(s++);
+  length = pgm_read_byte(s++);
   lcdDrawSizedText(x, y, s+length*idx, length, flags & ~ZCHAR);
 }
 

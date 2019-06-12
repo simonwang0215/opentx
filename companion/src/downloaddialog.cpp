@@ -25,12 +25,10 @@
 
 #include <QTime>
 
-DownloadDialog::DownloadDialog(QWidget *parent, QString src, QString tgt):
+downloadDialog::downloadDialog(QWidget *parent, QString src, QString tgt):
   QDialog(parent),
-  ui(new Ui::DownloadDialog),
-  reply(nullptr),
-  file(nullptr),
-  aborted(false)
+  ui(new Ui::downloadDialog),
+  file(NULL)
 {
     ui->setupUi(this);
     setWindowIcon(CompanionIcon("fwpreferences.png"));
@@ -58,60 +56,51 @@ DownloadDialog::DownloadDialog(QWidget *parent, QString src, QString tgt):
     }
 }
 
-DownloadDialog::~DownloadDialog()
+downloadDialog::~downloadDialog()
 {
   delete ui;
   delete file;
 }
 
-void DownloadDialog::reject()
+void downloadDialog::httpFinished()
 {
-  if (reply && reply->isRunning()) {
-    aborted = true;
-    reply->abort();  // this will call QNetworkReply::finished()
-    return;
-  }
+    file->flush();
+    file->close();
 
-  QDialog::reject();
+    bool ok = true;
+    if (reply->error()) {
+        file->remove();
+        QMessageBox::information(this, CPN_STR_APP_NAME,
+                                 tr("Download failed: %1.")
+                                 .arg(reply->errorString()));
+        ok = false;
+    }
+
+    reply->deleteLater();
+    reply = 0;
+    delete file;
+    file = NULL;
+
+    if (ok)
+      accept();
+    else
+      reject();
 }
 
-void DownloadDialog::httpFinished()
-{
-  file->flush();
-  file->close();
-
-  const bool ok = !(reply->error() || aborted);
-  if (!ok) {
-    file->remove();
-    if (!aborted)
-      QMessageBox::information(this, CPN_STR_APP_NAME, tr("Download failed: %1.").arg(reply->errorString()));
-  }
-
-  reply->deleteLater();
-  reply = nullptr;
-  file->deleteLater();
-  file = nullptr;
-
-  if (ok)
-    accept();
-  else
-    reject();
-}
-
-void DownloadDialog::httpReadyRead()
+void downloadDialog::httpReadyRead()
 {
   if (file) {
     file->write(reply->readAll());
   }
 }
 
-void DownloadDialog::updateDataReadProgress(qint64 bytesRead, qint64 totalBytes)
+void downloadDialog::updateDataReadProgress(qint64 bytesRead, qint64 totalBytes)
 {
   ui->progressBar->setMaximum(totalBytes);
   ui->progressBar->setValue(bytesRead);
 }
 
-void DownloadDialog::fileError()
+void downloadDialog::fileError()
 {
   delete file;
   file = NULL;
@@ -119,7 +108,7 @@ void DownloadDialog::fileError()
 }
 
 #if 0
-void DownloadDialog::closeEvent( QCloseEvent * event)
+void downloadDialog::closeEvent( QCloseEvent * event)
 {
   // Delay closing 2 seconds to avoid unpleasant flashing download dialogs
   QTime closeTime= QTime::currentTime().addSecs(2);

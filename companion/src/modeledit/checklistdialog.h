@@ -21,8 +21,6 @@
 #ifndef _CHECKLISTDIALOG_H_
 #define _CHECKLISTDIALOG_H_
 
-#include "modeldata.h"
-
 #include <QtWidgets>
 
 namespace Ui {
@@ -33,14 +31,13 @@ class ChecklistDialog : public QDialog {
   Q_OBJECT
 
 public:
-  ChecklistDialog(QWidget *parent, const ModelData * model);
+  ChecklistDialog(QWidget *parent, const QString modelName);
   ~ChecklistDialog();
 
 private slots:
   void import();
   void update();
   void changed();
-  void cursorChanged();
 
 private:
   Ui::ChecklistDialog *ui;

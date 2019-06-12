@@ -70,10 +70,11 @@ enum menuRadioSetupItems {
   CASE_GPS(ITEM_SETUP_TIMEZONE)
   CASE_GPS(ITEM_SETUP_ADJUST_RTC)
   CASE_GPS(ITEM_SETUP_GPSFORMAT)
-  CASE_PXX1(ITEM_SETUP_COUNTRYCODE)
+  CASE_PXX(ITEM_SETUP_COUNTRYCODE)
   ITEM_SETUP_LANGUAGE,
   ITEM_SETUP_IMPERIAL,
   IF_FAI_CHOICE(ITEM_SETUP_FAI)
+  // CASE_MAVLINK(ITEM_MAVLINK_BAUD)
   ITEM_SETUP_SWITCHES_DELAY,
   ITEM_SETUP_USB_MODE,
   ITEM_SETUP_RX_CHANNEL_ORD,
@@ -115,7 +116,7 @@ bool menuRadioSetup(event_t event)
     LABEL(ALARMS), 0, 0, 0, 0,
     LABEL(BACKLIGHT), 0, 0, 0, 0, 0,
     CASE_GPS(LABEL(GPS)) CASE_GPS(0) CASE_GPS(0) CASE_GPS(0)
-    CASE_PXX1(0) 0, 0, FAI_CHOICE_ROW 0, 0, 0, 0, 1/*to force edit mode*/ }); // Country code - Voice Language - Units - Fai choice - Play delay - USB mode - Chan order - Mode (1 to 4)
+    CASE_PXX(0) 0, 0, FAI_CHOICE_ROW 0, 0, 0, 0, 1/*to force edit mode*/ }); // Country code - Voice Language - Units - Fai choice - Play delay - USB mode - Chan order - Mode (1 to 4)
 
   if (event == EVT_ENTRY) {
     reusableBuffer.generalSettings.stickMode = g_eeGeneral.stickMode;
@@ -154,8 +155,8 @@ bool menuRadioSetup(event_t event)
             {
               int16_t year = TM_YEAR_BASE + t.tm_year;
               int8_t dlim = (((((year%4==0) && (year%100!=0)) || (year%400==0)) && (t.tm_mon==1)) ? 1 : 0);
-              static const uint8_t dmon[]  = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-              dlim += dmon[t.tm_mon];
+              static const pm_uint8_t dmon[] PROGMEM = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+              dlim += pgm_read_byte(&dmon[t.tm_mon]);
               lcdDrawNumber(lcdNextPos+3, y, t.tm_mday, flags|rowattr|LEADING0, 2);
               if (rowattr && s_editMode>0) t.tm_mday = checkIncDec(event, t.tm_mday, 1, dlim, 0);
               break;
@@ -226,6 +227,9 @@ bool menuRadioSetup(event_t event)
       case ITEM_SETUP_BEEP_MODE:
         lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SPEAKER);
         g_eeGeneral.beepMode = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_VBEEPMODE, g_eeGeneral.beepMode, -2, 1, attr, event);
+#if defined(TELEMETRY_FRSKY)
+        if (attr && checkIncDec_Ret) frskySendAlarms();
+#endif
         break;
 
       case ITEM_SETUP_GENERAL_VOLUME:
@@ -400,12 +404,10 @@ bool menuRadioSetup(event_t event)
         g_eeGeneral.gpsFormat = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_GPSFORMAT, g_eeGeneral.gpsFormat, 0, 1, attr, event);
         break;
 
-#if defined(PXX1)
       case ITEM_SETUP_COUNTRYCODE:
         lcdDrawText(MENUS_MARGIN_LEFT, y, STR_COUNTRYCODE);
         g_eeGeneral.countryCode = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_COUNTRYCODES, g_eeGeneral.countryCode, 0, 2, attr, event);
         break;
-#endif
 
       case ITEM_SETUP_LANGUAGE:
         lcdDrawText(MENUS_MARGIN_LEFT, y, STR_VOICELANG);
@@ -426,20 +428,26 @@ bool menuRadioSetup(event_t event)
 
 #if defined(FAI_CHOICE)
       case ITEM_SETUP_FAI:
-        lcdDrawText(MENUS_MARGIN_LEFT, y, "FAI Mode");
+        lcdDrawText(MENUS_MARGIN_LEFT, y, PSTR("FAI Mode"));
         if (g_eeGeneral.fai) {
-          lcdDrawText(RADIO_SETUP_2ND_COLUMN, y, "Locked in FAI Mode");
+          lcdDrawText(RADIO_SETUP_2ND_COLUMN, y, PSTR("Locked in FAI Mode"));
         }
         else {
           g_eeGeneral.fai = editCheckBox(g_eeGeneral.fai, RADIO_SETUP_2ND_COLUMN, y, attr, event);
           if (attr && checkIncDec_Ret) {
-            g_eeGeneral.fai = false;
-            POPUP_CONFIRMATION("FAI mode?");
+              g_eeGeneral.fai = false;
+              POPUP_CONFIRMATION(PSTR("FAI mode?"));
           }
         }
         break;
 #endif
 
+#if defined(TELEMETRY_MAVLINK)
+      case ITEM_MAVLINK_BAUD:
+        lcdDrawText(MENUS_MARGIN_LEFT, y, STR_MAVLINK_BAUD_LABEL);
+        g_eeGeneral.mavbaud = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_MAVLINK_BAUDS, g_eeGeneral.mavbaud, 0, 7, attr, event);
+        break;
+#endif
 
       case ITEM_SETUP_SWITCHES_DELAY:
         lcdDrawText(MENUS_MARGIN_LEFT, y, STR_SWITCHES_DELAY);
@@ -472,7 +480,7 @@ bool menuRadioSetup(event_t event)
         s[0] = '1'+reusableBuffer.generalSettings.stickMode;
         lcdDrawText(RADIO_SETUP_2ND_COLUMN, y, s, attr);
         for (uint8_t i=0; i<4; i++) {
-          drawSource(RADIO_SETUP_2ND_COLUMN + 40 + 50*i, y, MIXSRC_Rud + *(modn12x3 + 4*reusableBuffer.generalSettings.stickMode + i));
+          drawSource(RADIO_SETUP_2ND_COLUMN + 40 + 50*i, y, MIXSRC_Rud + pgm_read_byte(modn12x3 + 4*reusableBuffer.generalSettings.stickMode + i));
         }
         if (attr && s_editMode>0) {
           CHECK_INCDEC_GENVAR(event, reusableBuffer.generalSettings.stickMode, 0, 3);
@@ -482,7 +490,7 @@ bool menuRadioSetup(event_t event)
           g_eeGeneral.stickMode = reusableBuffer.generalSettings.stickMode;
           checkTHR();
           resumePulses();
-          waitKeysReleased();
+          clearKeyEvents();
         }
         break;
       }

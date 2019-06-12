@@ -27,7 +27,7 @@
 
 void menuStatisticsView(event_t event)
 {
-  title(STR_MENUSTAT);
+  TITLE(STR_MENUSTAT);
 
   switch(event)
   {
@@ -105,7 +105,7 @@ void menuStatisticsView(event_t event)
 
 void menuStatisticsDebug(event_t event)
 {
-  title(STR_MENUDEBUG);
+  TITLE(STR_MENUDEBUG);
 
 #if defined(WATCHDOG_TEST)
   if (warningResult) {
@@ -149,7 +149,7 @@ void menuStatisticsDebug(event_t event)
 #if defined(WATCHDOG_TEST)
     case EVT_KEY_LONG(KEY_MENU):
       {
-        POPUP_CONFIRMATION("Test the watchdog?", nullptr);
+        POPUP_CONFIRMATION("Test the watchdog?");
         const char * w = "The radio will reset!";
         SET_WARNING_INFO(w, strlen(w), 0);
       }
@@ -184,7 +184,7 @@ void menuStatisticsDebug(event_t event)
   lcdDrawNumber(lcdLastRightPos, MENU_DEBUG_ROW4, usbWraps, LEFT);
 #endif
 
-  lcdDrawTextAlignedLeft(MENU_DEBUG_ROW5, STR_FREE_STACK);
+  lcdDrawTextAlignedLeft(MENU_DEBUG_ROW5, STR_FREESTACKMINB);
   lcdDrawText(MENU_DEBUG_COL1_OFS, MENU_DEBUG_ROW5+1, "[M]", SMLSIZE);
   lcdDrawNumber(lcdLastRightPos, MENU_DEBUG_ROW5, menusStack.available(), LEFT);
   lcdDrawText(lcdLastRightPos+2, MENU_DEBUG_ROW5+1, "[X]", SMLSIZE);
@@ -200,7 +200,7 @@ void menuStatisticsDebug(event_t event)
 
 void menuStatisticsDebug2(event_t event)
 {
-  title(STR_MENUDEBUG);
+  TITLE(STR_MENUDEBUG);
 
   switch(event)
   {

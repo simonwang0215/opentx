@@ -22,6 +22,7 @@
 
 class SpecialFunctionsTest : public OpenTxTest {};
 
+#if defined(CPUARM)
 TEST_F(SpecialFunctionsTest, SwitchFiledSize)
 {
   // test the size of swtch member
@@ -116,3 +117,4 @@ TEST_F(SpecialFunctionsTest, GvarsInc)
 
 #endif // #if defined(PCBTARANIS) || defined(PCBHORUS)
 
+#endif // #if defined(CPUARM)

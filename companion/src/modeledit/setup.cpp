@@ -22,16 +22,13 @@
 #include "ui_setup.h"
 #include "ui_setup_timer.h"
 #include "ui_setup_module.h"
-#include "rawitemfilteredmodel.h"
+#include "switchitemmodel.h"
 #include "appdata.h"
 #include "modelprinter.h"
 #include "multiprotocols.h"
 #include "checklistdialog.h"
-#include "helpers.h"
 
-#include <QDir>
-
-TimerPanel::TimerPanel(QWidget *parent, ModelData & model, TimerData & timer, GeneralSettings & generalSettings, Firmware * firmware, QWidget * prevFocus, RawSwitchFilterItemModel * switchModel):
+TimerPanel::TimerPanel(QWidget *parent, ModelData & model, TimerData & timer, GeneralSettings & generalSettings, Firmware * firmware, QWidget * prevFocus):
   ModelPanel(parent, model, generalSettings, firmware),
   timer(timer),
   ui(new Ui::Timer)
@@ -53,9 +50,9 @@ TimerPanel::TimerPanel(QWidget *parent, ModelData & model, TimerData & timer, Ge
   }
 
   // Mode
-  ui->mode->setModel(switchModel);
+  rawSwitchItemModel = new RawSwitchFilterItemModel(&generalSettings, &model, TimersContext);
+  ui->mode->setModel(rawSwitchItemModel);
   ui->mode->setCurrentIndex(ui->mode->findData(timer.mode.toValue()));
-  connect(ui->mode, SIGNAL(activated(int)), this, SLOT(onModeChanged(int)));
 
   if (!firmware->getCapability(PermTimers)) {
     ui->persistent->hide();
@@ -95,11 +92,12 @@ TimerPanel::~TimerPanel()
 
 void TimerPanel::update()
 {
+  rawSwitchItemModel->update();
+
   int hour = timer.val / 3600;
   int min = (timer.val - (hour * 3600)) / 60;
   int sec = (timer.val - (hour * 3600)) % 60;
 
-  ui->mode->setCurrentIndex(ui->mode->findData(timer.mode.toValue()));
   ui->value->setTime(QTime(hour, min, sec));
 
   if (firmware->getCapability(PermTimers)) {
@@ -133,15 +131,10 @@ void TimerPanel::on_value_editingFinished()
   }
 }
 
-void TimerPanel::onModeChanged(int index)
+void TimerPanel::on_mode_currentIndexChanged(int index)
 {
-  if (lock)
-    return;
-
-  bool ok;
-  const RawSwitch rs(ui->mode->itemData(index).toInt(&ok));
-  if (ok && timer.mode.toValue() != rs.toValue()) {
-    timer.mode = rs;
+  if (!lock) {
+    timer.mode = RawSwitch(ui->mode->itemData(index).toInt());
     emit modified();
   }
 }
@@ -224,7 +217,7 @@ ModulePanel::ModulePanel(QWidget * parent, ModelData & model, ModuleData & modul
         ui->protocol->setCurrentIndex(ui->protocol->count()-1);
     }
   }
-  for (int i=0; i<=MODULE_SUBTYPE_MULTI_LAST; i++) {
+  for (int i=0; i<=MM_RF_PROTO_LAST; i++) {
     ui->multiProtocol->addItem(Multiprotocols::protocolToString(i), i);
   }
 
@@ -255,10 +248,8 @@ ModulePanel::~ModulePanel()
 
 bool ModulePanel::moduleHasFailsafes()
 {
-  return firmware->getCapability(HasFailsafe) && (
-    (PulsesProtocol)module.protocol == PulsesProtocol::PULSES_ACCESS_ISRM ||
-    (PulsesProtocol)module.protocol == PulsesProtocol::PULSES_PXX_XJT_X16 ||
-    (PulsesProtocol)module.protocol == PulsesProtocol::PULSES_PXX_R9M);
+  return (((PulsesProtocol)module.protocol == PulsesProtocol::PULSES_PXX_XJT_X16 || (PulsesProtocol)module.protocol == PulsesProtocol::PULSES_PXX_R9M)
+         && firmware->getCapability(HasFailsafe));;
 }
 
 void ModulePanel::setupFailsafes()
@@ -364,9 +355,6 @@ void ModulePanel::update()
   if (moduleIdx >= 0) {
     mask |= MASK_PROTOCOL;
     switch (protocol) {
-      case PULSES_ACCESS_ISRM:
-        mask |= MASK_CHANNELS_RANGE | MASK_CHANNELS_COUNT | MASK_RX_NUMBER;
-        break;
       case PULSES_PXX_R9M:
         mask |= MASK_R9M | MASK_SUBTYPES;
       case PULSES_PXX_XJT_X16:
@@ -376,7 +364,7 @@ void ModulePanel::update()
         mask |= MASK_CHANNELS_RANGE | MASK_CHANNELS_COUNT;
         if (protocol==PULSES_PXX_XJT_X16 || protocol==PULSES_PXX_XJT_LR12 || protocol==PULSES_PXX_R9M)
           mask |= MASK_RX_NUMBER;
-        if ((IS_HORUS(board) || board == Board::BOARD_TARANIS_XLITE) && moduleIdx == 0)
+        if ((IS_HORUS(board) || IS_TARANIS_XLITE(board)) && moduleIdx==0)
           mask |= MASK_ANTENNA;
         break;
       case PULSES_LP45:
@@ -403,7 +391,7 @@ void ModulePanel::update()
       case PULSES_MULTIMODULE:
         mask |= MASK_CHANNELS_RANGE | MASK_RX_NUMBER | MASK_MULTIMODULE | MASK_SUBTYPES;
         max_rx_num = 15;
-        if (module.multi.rfProtocol == MODULE_SUBTYPE_MULTI_DSM2)
+        if (module.multi.rfProtocol == MM_RF_PROTO_DSM2)
           mask |= MASK_CHANNELS_COUNT;
         else
           module.channelsCount = 16;
@@ -560,7 +548,7 @@ void ModulePanel::update()
 
   if (mask & MASK_CHANNELS_RANGE) {
     ui->channelsStart->setMaximum(33 - ui->channelsCount->value());
-    ui->channelsCount->setMaximum(qMin(24, 33-ui->channelsStart->value()));
+    ui->channelsCount->setMaximum(qMin(16, 33-ui->channelsStart->value()));
   }
 }
 
@@ -913,15 +901,11 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
   }
 
   QWidget * prevFocus = ui->image;
-  RawSwitchFilterItemModel * swModel = new RawSwitchFilterItemModel(&generalSettings, &model, RawSwitch::TimersContext, this);
-  connect(this, &SetupPanel::updated, swModel, &RawSwitchFilterItemModel::update);
-
   for (int i=0; i<CPN_MAX_TIMERS; i++) {
     if (i<firmware->getCapability(Timers)) {
-      timers[i] = new TimerPanel(this, model, model.timers[i], generalSettings, firmware, prevFocus, swModel);
+      timers[i] = new TimerPanel(this, model, model.timers[i], generalSettings, firmware, prevFocus);
       ui->gridLayout->addWidget(timers[i], 1+i, 1);
       connect(timers[i], &TimerPanel::modified, this, &SetupPanel::modified);
-      connect(this, &SetupPanel::updated, timers[i], &TimerPanel::update);
       prevFocus = timers[i]->getLastFocus();
     }
     else {
@@ -1051,7 +1035,7 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
     ui->trimsDisplay->hide();
   }
 
-  for (int i=firmware->getCapability(NumFirstUsableModule); i<firmware->getCapability(NumModules); i++) {
+  for (int i=0; i<firmware->getCapability(NumModules); i++) {
     modules[i] = new ModulePanel(this, model, model.moduleData[i], generalSettings, firmware, i);
     ui->modulesLayout->addWidget(modules[i]);
     connect(modules[i], &ModulePanel::modified, this, &SetupPanel::modified);
@@ -1199,13 +1183,15 @@ void SetupPanel::update()
     updatePotWarnings();
   }
 
+  for (int i=0; i<firmware->getCapability(Timers); i++) {
+    timers[i]->update();
+  }
+
   for (int i=0; i<CPN_MAX_MODULES+1; i++) {
     if (modules[i]) {
       modules[i]->update();
     }
   }
-
-  emit updated();
 }
 
 void SetupPanel::updateBeepCenter()
@@ -1363,13 +1349,6 @@ void SetupPanel::onBeepCenterToggled(bool checked)
 
 void SetupPanel::on_editText_clicked()
 {
-  const QString path = Helpers::getChecklistsPath();
-  QDir d(path);
-  if (!d.exists()) {
-    QMessageBox::critical(this, tr("Profile Settings"), tr("SD structure path not specified or invalid"));
-  }
-  else {
-    ChecklistDialog *g = new ChecklistDialog(this, model);
-    g->exec();
-  }
+  ChecklistDialog *g = new ChecklistDialog(this, ui->name->text());
+  g->exec();
 }

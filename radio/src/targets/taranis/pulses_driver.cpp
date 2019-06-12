@@ -20,87 +20,103 @@
 
 #include "opentx.h"
 
-#if defined(PXX1)
-void init_pxx1_pulses(uint8_t module)
-{
-  if (module == INTERNAL_MODULE)
-    intmodulePxxStart();
-  else
-    extmodulePxxPulsesStart();
-}
+void intmoduleStop(void);
+void extmoduleStop(void);
 
-void init_pxx1_serial(uint8_t module)
-{
-  if (module == INTERNAL_MODULE)
-    intmodulePxxStart();
-#if defined(EXTMODULE_USART)
-  else
-    extmodulePxxSerialStart();
-#endif
-}
-
-void disable_pxx1_pulses(uint8_t module)
-{
-  if (module == INTERNAL_MODULE)
-    intmoduleStop();
-  else
-    extmoduleStop();
-}
-
-void disable_pxx1_serial(uint8_t module)
-{
-  if (module == INTERNAL_MODULE)
-    intmoduleStop();
-  else
-    extmoduleStop();
-}
+void intmoduleNoneStart(void);
+void intmodulePxxStart(void);
+#if defined(TARANIS_INTERNAL_PPM)
+void intmodulePpmStart(void);
 #endif
 
-void init_pxx2(uint8_t module)
+void extmoduleNoneStart(void);
+void extmodulePpmStart(void);
+void extmodulePxxStart(void);
+void extmoduleSerialStart(uint32_t baudrate, uint32_t period_half_us);
+void extmoduleCrossfireStart(void);
+
+void init_pxx(uint32_t port)
 {
-  if (module == INTERNAL_MODULE)
-    intmoduleSerialStart(INTMODULE_PXX_BAUDRATE, true);
+  if (port == INTERNAL_MODULE)
+    intmodulePxxStart();
   else
-    extmodulePxx2Start();
+    extmodulePxxStart();
 }
 
-void disable_pxx2(uint8_t module)
+void disable_pxx(uint32_t port)
 {
-  if (module == INTERNAL_MODULE)
+  if (port == INTERNAL_MODULE)
     intmoduleStop();
   else
     extmoduleStop();
 }
 
 #if defined(DSM2)
-void disable_serial(uint8_t module)
+void init_serial(uint32_t port, uint32_t baudrate, uint32_t period_half_us)
 {
-  if (module == EXTERNAL_MODULE) {
+  if (port == EXTERNAL_MODULE) {
+    extmoduleSerialStart(baudrate, period_half_us);
+  }
+}
+
+void disable_serial(uint32_t port)
+{
+  if (port == EXTERNAL_MODULE) {
     extmoduleStop();
   }
 }
 #endif
 
-void init_ppm(uint8_t module)
+void init_ppm(uint32_t port)
 {
-  if (module == EXTERNAL_MODULE) {
+  if (port == EXTERNAL_MODULE) {
     extmodulePpmStart();
   }
-#if defined(INTERNAL_MODULE_PPM)
-  else {
+#if defined(TARANIS_INTERNAL_PPM)
+  else if (port == INTERNAL_MODULE) {
     intmodulePpmStart();
   }
 #endif
 }
 
-void disable_ppm(uint8_t module)
+void disable_ppm(uint32_t port)
 {
-  if (module == EXTERNAL_MODULE) {
+  if (port == EXTERNAL_MODULE) {
     extmoduleStop();
   }
-#if defined(INTERNAL_MODULE_PPM)
-  else {
+#if defined(TARANIS_INTERNAL_PPM)
+  else if (port == INTERNAL_MODULE) {
     intmoduleStop();
   }
 #endif
+}
+
+void init_no_pulses(uint32_t port)
+{
+  if (port == INTERNAL_MODULE)
+    intmoduleNoneStart();
+  else
+    extmoduleNoneStart();
+}
+
+void disable_no_pulses(uint32_t port)
+{
+  if (port == INTERNAL_MODULE)
+    intmoduleStop();
+  else
+    extmoduleStop();
+}
+
+void init_crossfire(uint32_t port)
+{
+  if (port == EXTERNAL_MODULE) {
+    extmoduleCrossfireStart();
+  }
+}
+
+void disable_crossfire(uint32_t port)
+{
+  if (port == EXTERNAL_MODULE) {
+    extmoduleStop();
+  }
 }

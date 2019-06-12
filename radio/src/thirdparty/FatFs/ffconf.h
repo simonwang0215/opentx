@@ -2,11 +2,9 @@
 /  FatFs - FAT file system module configuration file
 /---------------------------------------------------------------------------*/
 
-#include "rtos.h"
-
 #define _FFCONF 68020	/* Revision ID */
 
-#if !defined(SIMU)
+#if defined(CPUARM) && !defined(SIMU)
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -121,8 +119,13 @@ extern "C" {
 */
 
 
+#if defined(CPUARM)
   #define _USE_LFN	    2
   #define _MAX_LFN      255
+#else
+  #define _USE_LFN      1
+  #define _MAX_LFN      32
+#endif
 /* The _USE_LFN switches the support of long file name (LFN).
 /
 /   0: Disable support of LFN. _MAX_LFN has no effect.
@@ -263,9 +266,9 @@ extern "C" {
 /      can be opened simultaneously under file lock control. Note that the file
 /      lock control is independent of re-entrancy. */
 
-#if !defined(BOOT)
+#if defined(CPUARM) && !defined(BOOT)
   #define _FS_REENTRANT		1	   /* 0:Disable or 1:Enable */
-  #define _SYNC_t               RTOS_MUTEX_HANDLE /* O/S dependent type of sync object. e.g. HANDLE, OS_EVENT*, ID and etc.. */
+  #define _SYNC_t               unsigned char /*OS_MutexID*/       /* O/S dependent type of sync object. e.g. HANDLE, OS_EVENT*, ID and etc.. */
 #else
   #define _FS_REENTRANT		0	   /* 0:Disable or 1:Enable */
 #endif

@@ -82,7 +82,6 @@ bool checkScreenshot_480x272(const QString & test)
 
 TEST(Lcd_480x272, vline)
 {
-  loadFonts();
   lcd->clear(TEXT_BGCOLOR);
   for (int x=0; x<100; x+=2) {
     lcdDrawSolidVerticalLine(x, x/2, 12, TEXT_COLOR);
@@ -92,7 +91,6 @@ TEST(Lcd_480x272, vline)
 
 TEST(Lcd_480x272, primitives)
 {
-  loadFonts();
   lcd->clear(TEXT_BGCOLOR);
   lcdDrawText(8, 8, "The quick brown fox jumps over the lazy dog", CURVE_AXIS_COLOR|NO_FONTCACHE);
   lcdDrawText(5, 5, "The quick brown fox jumps over the lazy dog", TEXT_COLOR|NO_FONTCACHE);
@@ -120,7 +118,6 @@ TEST(Lcd_480x272, primitives)
 
 TEST(Lcd_480x272, transparency)
 {
-  loadFonts();
   lcd->clear(TEXT_BGCOLOR);
   lcdDrawText(8, 8, "The quick brown fox jumps over the lazy dog", TEXT_COLOR|OPACITY(4)|NO_FONTCACHE);
   lcdDrawText(5, 5, "The quick brown fox jumps over the lazy dog", TEXT_COLOR|OPACITY(12)|NO_FONTCACHE);
@@ -157,7 +154,6 @@ TEST(Lcd_480x272, transparency)
 
 TEST(Lcd_480x272, fonts)
 {
-  loadFonts();
   loadFontCache();
   lcd->clear(TEXT_BGCOLOR);
 

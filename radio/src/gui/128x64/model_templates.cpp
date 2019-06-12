@@ -33,7 +33,7 @@ void menuModelTemplates(event_t event)
       AUDIO_WARNING2();
     }
     if (event==EVT_KEY_BREAK(KEY_ENTER)) {
-      POPUP_CONFIRMATION(STR_VTEMPLATES+1 + (sub * LEN2_VTEMPLATES), nullptr);
+      POPUP_CONFIRMATION(STR_VTEMPLATES+1 + (sub * LEN2_VTEMPLATES));
       s_editMode = 0;
     }
   }

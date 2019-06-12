@@ -26,7 +26,7 @@
 int expoFn(int x)
 {
   ExpoData * ed = expoAddress(s_currIdx);
-  int16_t anas[MAX_INPUTS] = {0};
+  int16_t anas[NUM_INPUTS] = {0};
   applyExpos(anas, e_perout_mode_inactive_flight_mode, ed->srcRaw, x);
   return anas[ed->chn];
 }
@@ -60,8 +60,8 @@ enum ExposFields {
   EXPO_FIELD_SCALE,
   EXPO_FIELD_WEIGHT,
   EXPO_FIELD_OFFSET,
-  EXPO_FIELD_CURVE_LABEL,
-  EXPO_FIELD_CURVE,
+  CASE_CURVES(EXPO_FIELD_CURVE_LABEL)
+  CASE_CURVES(EXPO_FIELD_CURVE)
   CASE_FLIGHT_MODES(EXPO_FIELD_FLIGHT_MODES_LABEL)
   CASE_FLIGHT_MODES(EXPO_FIELD_FLIGHT_MODES)
   EXPO_FIELD_SWITCH,
@@ -75,7 +75,7 @@ void menuModelExpoOne(event_t event)
   ExpoData * ed = expoAddress(s_currIdx);
   drawSource(PSIZE(TR_MENUINPUTS)*FW+FW, 0, MIXSRC_FIRST_INPUT+ed->chn, 0);
   
-  SUBMENU(STR_MENUINPUTS, EXPO_FIELD_MAX, {0, 0, 0, ed->srcRaw >= MIXSRC_FIRST_TELEM ? (uint8_t)0 : (uint8_t)HIDDEN_ROW, 0, 0, LABEL(Curve), 1, CASE_FLIGHT_MODES(LABEL(Flight Mode)) CASE_FLIGHT_MODES((MAX_FLIGHT_MODES-1) | NAVIGATION_LINE_BY_LINE) 0 /*, ...*/});
+  SUBMENU(STR_MENUINPUTS, EXPO_FIELD_MAX, {0, 0, 0, ed->srcRaw >= MIXSRC_FIRST_TELEM ? (uint8_t)0 : (uint8_t)HIDDEN_ROW, 0, 0, CASE_CURVES(LABEL(Curve)) CASE_CURVES(1) CASE_FLIGHT_MODES(LABEL(Flight Mode)) CASE_FLIGHT_MODES((MAX_FLIGHT_MODES-1) | NAVIGATION_LINE_BY_LINE) 0 /*, ...*/});
 
   int8_t sub = menuVerticalPosition;
 
@@ -121,6 +121,7 @@ void menuModelExpoOne(event_t event)
         ed->offset = GVAR_MENU_ITEM(EXPO_ONE_2ND_COLUMN, y, ed->offset, -100, 100, RIGHT | attr, 0, event);
         break;
 
+#if defined(CURVES)
       case EXPO_FIELD_CURVE_LABEL:
         lcdDrawTextAlignedLeft(y, STR_CURVE);
         break;
@@ -128,6 +129,7 @@ void menuModelExpoOne(event_t event)
       case EXPO_FIELD_CURVE:
         editCurveRef(EXPO_ONE_2ND_COLUMN, y, ed->curve, s_editMode > 0 ? event : 0, RIGHT | attr);
         break;
+#endif
 
 #if defined(FLIGHT_MODES)
       case EXPO_FIELD_FLIGHT_MODES_LABEL:
@@ -144,7 +146,7 @@ void menuModelExpoOne(event_t event)
         break;
 
       case EXPO_FIELD_SIDE:
-        ed->mode = 4 - editChoice(EXPO_ONE_2ND_COLUMN, y, STR_SIDE, STR_VCURVEFUNC, 4-ed->mode, 1, 3, RIGHT | attr, event);
+        ed->mode = 4 - editChoice(EXPO_ONE_2ND_COLUMN, y, STR_SIDE, STR_VSIDE, 4-ed->mode, 1, 3, RIGHT | attr, event);
         break;
 
       case EXPO_FIELD_TRIM:

@@ -22,6 +22,17 @@
 
 volatile uint8_t buzzerCount ;
 
+#if defined(REVA)
+void buzzerOn()
+{
+  PIOA->PIO_SODR = 0x00010000L ;        // Set bit A16 ON
+}
+
+void buzzerOff()
+{
+  PIOA->PIO_CODR = 0x00010000L ;        // Set bit A16 ON
+}
+#else
 void buzzerOn()
 {
   PIOA->PIO_SODR = 0x02000000L ;        // Set bit A25 ON
@@ -31,6 +42,7 @@ void buzzerOff()
 {
   PIOA->PIO_CODR = 0x02000000L ;        // Set bit A25 ON
 }
+#endif
 
 void buzzerSound(uint8_t duration)
 {

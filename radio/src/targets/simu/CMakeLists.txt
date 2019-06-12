@@ -1,10 +1,3 @@
-
-option(SIMU_TARGET "Configure libsimulator/simu targets (can be turned off for compiling Companion only)" ON)
-if(NOT SIMU_TARGET)
-  message(STATUS "libsimulator/simu targets disabled")
-  return()
-endif()
-
 foreach(FILE ${SRC})
   set(SIMU_SRC ${SIMU_SRC} ../../${FILE})
 endforeach()
@@ -15,6 +8,7 @@ set(SIMU_SRC
   simueeprom.cpp
   simufatfs.cpp
   simudisk.cpp
+
   )
 
 if(SIMU_DISKIO)
@@ -74,10 +68,7 @@ if(WIN32)
 endif(WIN32)
 
 if(MSVC)
-  set(CMAKE_CXX_FLAGS "/EHsc")
-  if(NOT CLANG)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /LD /MP")
-  endif()
+  set(CMAKE_CXX_FLAGS "/EHsc /LD /MP")
 else()
   if(MINGW)
     # struct packing breaks on MinGW w/out -mno-ms-bitfields: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52991 & http://stackoverflow.com/questions/24015852/struct-packing-and-alignment-with-mingw

@@ -5,11 +5,9 @@ set(SDCARD YES)
 set(HAPTIC YES)
 set(EEPROM EEPROM_RAW)
 set(GUI_DIR 128x64)
-set(NAVIGATION_TYPE 9x)
 set(TARGET_DIR sky9x)
 set(FIRMWARE_DEPENDENCIES ${FIRMWARE_DEPENDENCIES} 9x_bitmaps)
 set(PPM_LIMITS_SYMETRICAL YES)
-set(PXX1 YES)
 
 if(PCB STREQUAL 9XRPRO)
   add_definitions(-Dat91sam3s8 -DREVX)
@@ -22,7 +20,7 @@ if(PCB STREQUAL 9XRPRO)
   set(OPENRC_BOOTLOADER bootflash8.lbm)
   set(CPU_TYPE_FULL ATSAM3S8C)  # for size report
 elseif(PCB STREQUAL AR9X)
-  add_definitions(-Dat91sam3s8 -DPCBAR9X -DSOFTWARE_VOLUME)
+  add_definitions(-Dat91sam3s8 -DAR9X -DSOFTWARE_VOLUME)
   set(FLAVOUR ar9x)
   include_directories(${THIRDPARTY_DIR}/xdk-asf-3.31.0/sam/drivers/twi)
   set(SRC ${SRC} ${THIRDPARTY_DIR}/xdk-asf-3.31.0/sam/drivers/twi/twi.c)
@@ -36,25 +34,31 @@ elseif(PCB STREQUAL AR9X)
   set(CPU_TYPE_FULL ATSAM3S8C)  # for size report
 else()
   set(FLAVOUR sky9x)
-  set(PCBREV "REVC" CACHE STRING "PCB Revision (REVB/REVC)")
-  set_property(CACHE PCBREV PROPERTY STRINGS "REVB" "REVC")
+  set(PCBREV "REVC" CACHE STRING "PCB Revision (REVA/REVB/REVC)")
+  set_property(CACHE PCBREV PROPERTY STRINGS "REVA" "REVB" "REVC")
   set(TARGET_SRC
     ${TARGET_SRC}
     coproc_driver.cpp
-    rotary_encoder_driver.cpp
+    rotenc_driver.cpp
     rtc_driver.cpp
     )
   set(OPENRC_BOOTLOADER bootflash4.lbm)
-  if(PCBREV STREQUAL REVB)
-    add_definitions(-DDREVB)
-  elseif(PCBREV STREQUAL REVC)
-    add_definitions(-DDREVC)
+  if(PCBREV STREQUAL REVA)
+    add_definitions(-DDREVA)
+    set(LINKER_SCRIPT targets/sky9x/sam3s2c_flash.ld)
+    set(CPU_TYPE_FULL ATSAM3S2C)  # for size report
   else()
-    message(SEND_ERROR "Unknown PCB Revision '${PCBREV}'")
+    if(PCBREV STREQUAL REVB)
+      add_definitions(-DDREVB)
+    elseif(PCBREV STREQUAL REVC)
+      add_definitions(-DDREVC)
+    else()
+      message(SEND_ERROR "Unknown PCB Revision '${PCBREV}'")
+    endif()
+    add_definitions(-DCOPROCESSOR)
+    set(LINKER_SCRIPT targets/sky9x/sam3s4c_flash.ld)
+    set(CPU_TYPE_FULL ATSAM3S4C)  # for size report
   endif()
-  add_definitions(-DCOPROCESSOR)
-  set(LINKER_SCRIPT targets/sky9x/sam3s4c_flash.ld)
-  set(CPU_TYPE_FULL ATSAM3S4C)  # for size report
 endif()
 
 add_definitions(-DPCBSKY9X -DPPM_PIN_SERIAL -DAUDIO_DUAL_BUFFER)
@@ -121,7 +125,7 @@ set(TARGET_SRC
   haptic_driver.cpp
   sdcard_driver.cpp
   massstorage.cpp
-  aux_serial_driver.cpp
+  serial2_driver.cpp
   audio_driver.cpp
   trainer_driver.cpp
   )

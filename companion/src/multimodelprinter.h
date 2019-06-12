@@ -93,8 +93,6 @@ class MultiModelPrinter: public QObject
     QString printTimers();
     QString printSensors();
     QString printTelemetryScreens();
-    QString printGlobalFunctions();
-    QString printChecklist();
 };
 
 #endif // _MULTIMODELPRINTER_H_
