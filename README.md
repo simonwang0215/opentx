@@ -9,7 +9,7 @@ Fixed bugs:
 
 ### Build instructions
 
-1.Download gcc-arm-none-eabi-4_7 and export gcc path:
+1.Download [gcc-arm-none-eabi-4_7](https://launchpad.net/gcc-arm-embedded/4.7/4.7-2013-q3-update) and export gcc path:
 
 *export=<PATH_TO_GCC_FOLDER>/bin:$PATH*
 
