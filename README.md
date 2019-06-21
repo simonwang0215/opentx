@@ -17,7 +17,7 @@ Fixed bugs:
 
 4.*cmake -DPCB=X7 -DGVARS=YES -DLUA=YES -DHELI=OFF -DDEBUG=OFF -DCMAKE_BUILD_TYPE=Release ../*
 
-This builds firmwafre for X7 radio with lua and noheli options
+This builds firmware for X7 radio with lua and noheli options
 
 5.*make firmware*
 
