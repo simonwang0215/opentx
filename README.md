@@ -13,7 +13,9 @@ Fixed bugs:
 
 *export=<PATH_TO_GCC_FOLDER>/bin:$PATH*
 
-3.*cd build-taranis*
+2.clone opentx 2.2.3.1 and cd to the folder
+
+3.*mkdir build-taranis & cd build-taranis*
 
 4.*cmake -DPCB=X7 -DGVARS=YES -DLUA=YES -DHELI=OFF -DDEBUG=OFF -DCMAKE_BUILD_TYPE=Release ../*
 
