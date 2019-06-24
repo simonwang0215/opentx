@@ -11,15 +11,15 @@ Fixed bugs:
 
 1.Download [gcc-arm-none-eabi-4_7](https://launchpad.net/gcc-arm-embedded/4.7/4.7-2013-q3-update) and export gcc path:
 
-*export=<PATH_TO_GCC_FOLDER>/bin:$PATH*
+*export PATH=<PATH_TO_GCC_FOLDER>/bin:$PATH*
 
 2.Clone opentx 2.2.3.1 and cd to the folder
 
 3.*mkdir build-taranis && cd build-taranis*
 
-4.*cmake -DPCB=X7 -DGVARS=YES -DLUA=YES -DHELI=OFF -DDEBUG=OFF -DCMAKE_BUILD_TYPE=Release ../*
+4.*cmake -DPCB=X7 -DGVARS=YES -DLUA=OFF -DHELI=OFF -DDEBUG=OFF -DCMAKE_BUILD_TYPE=Release ../*
 
-This builds firmware for X7 radio with lua and noheli options
+This builds firmware for X7 radio with no lua mixer and noheli options
 
 5.*make firmware*
 
